@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 import bcrypt
 import jwt
 from datetime import datetime, timedelta
-from .schemas import PasswordChangeRequest
+from .schemas import PasswordChangeRequest, AdminCreateRequest
 
 
 app = FastAPI()
@@ -72,6 +72,11 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
         raise credentials_exception
     return admin
 
+def superuser_required(current_admin: Admin = Depends(get_current_admin)):
+    if not bool(current_admin.is_super_admin):
+        raise HTTPException(status_code=403, detail="슈퍼관리자 권한이 필요합니다.")
+    return current_admin
+
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     db = SessionLocal()
@@ -99,6 +104,23 @@ def change_password(
         admin.set_password(req.new_password)
         db.commit()
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
+    finally:
+        db.close()
+
+@app.post("/create-admin")
+def create_admin(
+    req: AdminCreateRequest,
+    current_admin: Admin = Depends(superuser_required)
+):
+    db = SessionLocal()
+    try:
+        if db.query(Admin).filter(Admin.username == req.username).first():
+            raise HTTPException(status_code=400, detail="이미 존재하는 관리자 아이디입니다.")
+        new_admin = Admin(username=req.username, is_super_admin=False)
+        new_admin.set_password(req.password)
+        db.add(new_admin)
+        db.commit()
+        return {"msg": f"관리자 계정({req.username})이 성공적으로 생성되었습니다."}
     finally:
         db.close()
 
