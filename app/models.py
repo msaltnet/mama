@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
+import bcrypt
 
 Base = declarative_base()
 
@@ -12,6 +13,13 @@ class Admin(Base):
     is_super_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def verify_password(self, plain_password: str) -> bool:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), self.password.encode('utf-8'))
+
+    def set_password(self, new_password: str):
+        hashed_pw = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+        self.password = hashed_pw.decode('utf-8')
 
 class User(Base):
     __tablename__ = 'users'

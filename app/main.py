@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import bcrypt
 import jwt
 from datetime import datetime, timedelta
+from .schemas import PasswordChangeRequest
 
 
 app = FastAPI()
@@ -82,6 +83,22 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
             data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
         )
         return {"access_token": access_token, "token_type": "bearer"}
+    finally:
+        db.close()
+
+@app.post("/change-password")
+def change_password(
+    req: PasswordChangeRequest,
+    current_admin: Admin = Depends(get_current_admin)
+):
+    db = SessionLocal()
+    try:
+        admin = db.query(Admin).filter(Admin.id == current_admin.id).first()
+        if not admin or not admin.verify_password(req.old_password):
+            raise HTTPException(status_code=400, detail="기존 비밀번호가 일치하지 않습니다.")
+        admin.set_password(req.new_password)
+        db.commit()
+        return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     finally:
         db.close()
 
