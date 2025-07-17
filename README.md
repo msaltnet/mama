@@ -31,3 +31,41 @@ mama는 사용자 정보에 맞게 LiteLLM Virtual Key를 손쉽게 관리할 �
 7. 테스트 및 문서화
    - 각 기능별 테스트 코드 작성 및 문서 보완
 
+## Alembic 마이그레이션 사용법
+
+### 1. Alembic 환경 초기화(최초 1회)
+```
+pip install alembic
+alembic init alembic
+```
+
+### 2. 마이그레이션 파일 생성
+```
+alembic revision --autogenerate -m "메시지"
+```
+
+### 3. 마이그레이션 적용(업그레이드)
+```
+alembic upgrade head
+```
+
+### 4. 마이그레이션 롤백(다운그레이드)
+```
+alembic downgrade -1
+```
+
+### 5. 환경설정
+- DB 연결 정보는 `.env` 파일에서 관리하며, `alembic/env.py`에서 자동으로 불러옵니다.
+- 모델 변경 시 `alembic revision --autogenerate`로 변경사항을 감지할 수 있습니다.
+- 마이그레이션 파일은 `alembic/versions/` 폴더에 생성됩니다.
+
+### 6. 마이그레이션 버전 및 히스토리 확인
+- 현재 DB에 적용된 마이그레이션 버전 확인
+```
+alembic current
+```
+- 전체 마이그레이션 히스토리 확인
+```
+alembic history
+```
+
