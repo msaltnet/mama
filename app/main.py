@@ -74,7 +74,7 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
 
 def superuser_required(current_admin: Admin = Depends(get_current_admin)):
     if not bool(current_admin.is_super_admin):
-        raise HTTPException(status_code=403, detail="슈퍼관리자 권한이 필요합니다.")
+        raise HTTPException(status_code=403, detail="Super admin privileges required.")
     return current_admin
 
 @app.post("/login")
@@ -100,7 +100,7 @@ def change_password(
     try:
         admin = db.query(Admin).filter(Admin.id == current_admin.id).first()
         if not admin or not admin.verify_password(req.old_password):
-            raise HTTPException(status_code=400, detail="기존 비밀번호가 일치하지 않습니다.")
+            raise HTTPException(status_code=400, detail="Current password does not match.")
         admin.set_password(req.new_password)
         db.commit()
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
@@ -115,7 +115,7 @@ def create_admin(
     db = SessionLocal()
     try:
         if db.query(Admin).filter(Admin.username == req.username).first():
-            raise HTTPException(status_code=400, detail="이미 존재하는 관리자 아이디입니다.")
+            raise HTTPException(status_code=400, detail="Admin username already exists.")
         new_admin = Admin(username=req.username, is_super_admin=False)
         new_admin.set_password(req.password)
         db.add(new_admin)

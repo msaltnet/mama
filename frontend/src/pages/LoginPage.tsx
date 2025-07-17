@@ -1,14 +1,48 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: 로그인 API 연동
-    alert(`로그인 시도: ${username}`);
+    try {
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username,
+          password,
+        }),
+      });
+      if (!response.ok) {
+        let errorMsg = 'Login failed';
+        if (response.status === 401) {
+          errorMsg = 'Invalid username or password.';
+        } else if (response.status === 403) {
+          errorMsg = 'You do not have permission to access.';
+        } else if (response.status === 400) {
+          const data = await response.json();
+          errorMsg = data.detail || 'Bad request.';
+        } else {
+          const data = await response.json().catch(() => null);
+          if (data && data.detail) errorMsg = data.detail;
+        }
+        throw new Error(errorMsg);
+      }
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
+      alert('로그인 성공!');
+      navigate('/'); // 로그인 성공 시 루트로 이동
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -36,6 +70,11 @@ const LoginPage: React.FC = () => {
           <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
             로그인
           </Button>
+          {error && (
+            <Typography color="error" align="center" sx={{ mt: 2 }}>
+              {error}
+            </Typography>
+          )}
         </Box>
       </Paper>
     </Box>
