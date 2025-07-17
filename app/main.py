@@ -1,23 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import os
-from dotenv import load_dotenv
+
+from .config import DB_URL, JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .models import Base, Admin
 from sqlalchemy.orm import Session
 import bcrypt
+import jwt
+from datetime import datetime, timedelta
 
-# .env 파일 로드
-load_dotenv()
-
-# 환경변수에서 DB 정보 읽기
-DB_HOST = os.getenv('POSTGRES_HOST', 'localhost')
-DB_PORT = os.getenv('POSTGRES_PORT', '5432')
-DB_NAME = os.getenv('POSTGRES_DB', 'mama_db')
-DB_USER = os.getenv('POSTGRES_USER', 'your_username')
-DB_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'your_password')
-
-DB_URL = f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 
 app = FastAPI()
 
@@ -46,6 +39,51 @@ def init_db():
             print("[INFO] 슈퍼 관리자 계정이 이미 존재합니다.")
     finally:
         session.close()
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(SessionLocal)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    admin = db.query(Admin).filter(Admin.username == username).first()
+    if admin is None:
+        raise credentials_exception
+    return admin
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    db = SessionLocal()
+    try:
+        admin = db.query(Admin).filter(Admin.username == form_data.username).first()
+        if not admin or not bcrypt.checkpw(form_data.password.encode('utf-8'), admin.password.encode('utf-8')):
+            raise HTTPException(status_code=400, detail="Incorrect username or password")
+        access_token = create_access_token(
+            data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     init_db()
