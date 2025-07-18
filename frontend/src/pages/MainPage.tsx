@@ -1,18 +1,19 @@
 import React from 'react';
-import { Box, Button, Typography, Paper } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Box, Paper, Typography } from '@mui/material';
 
 const MainPage: React.FC = () => {
-  const navigate = useNavigate();
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Box sx={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Paper elevation={3} sx={{ p: 4, minWidth: 320, textAlign: 'center' }}>
-        <Typography variant="h5" gutterBottom>
-          메인 페이지
-        </Typography>
-        <Button variant="contained" color="primary" onClick={() => navigate('/admin')}>
-          관리자 설정
-        </Button>
+        {localStorage.getItem('username') ? (
+          <Typography variant="h6" color="text.primary">
+            {`Welcome, ${localStorage.getItem('username')}!`}
+          </Typography>
+        ) : (
+          <Typography variant="h6" color="text.secondary">
+            Login is required.
+          </Typography>
+        )}
       </Paper>
     </Box>
   );

@@ -7,6 +7,7 @@ import AccountSettingsPage from './pages/AccountSettingsPage';
 import MainPage from './pages/MainPage';
 import type { ReactElement } from 'react';
 import { CssBaseline } from '@mui/material';
+import Layout from './components/Layout';
 
 // PrivateRoute: 로그인(토큰) 여부 확인 후 없으면 /login으로 리다이렉트
 const PrivateRoute = ({ children }: { children: ReactElement }) => {
@@ -21,18 +22,20 @@ function App() {
   return (
     <Router>
       <CssBaseline />
-      <Routes>
-        <Route path="/" element={<MainPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/change-password" element={<ChangePasswordPage />} />
-        <Route path="/create-admin" element={<CreateAdminPage />} />
-        <Route path="/account" element={
-          <PrivateRoute>
-            <AccountSettingsPage />
-          </PrivateRoute>
-        } />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route path="/create-admin" element={<CreateAdminPage />} />
+          <Route path="/account" element={
+            <PrivateRoute>
+              <AccountSettingsPage />
+            </PrivateRoute>
+          } />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Layout>
     </Router>
   );
 }

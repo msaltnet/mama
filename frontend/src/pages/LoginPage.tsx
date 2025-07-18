@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { DEBUG } from '../config';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -10,6 +11,17 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (DEBUG) {
+      if (!password) {
+        localStorage.setItem('access_token', 'debug-token');
+        localStorage.setItem('username', username);
+        navigate('/');
+        return;
+      } else {
+        setError('Login failed');
+        return;
+      }
+    }
     try {
       const response = await fetch('/login', {
         method: 'POST',
@@ -38,7 +50,7 @@ const LoginPage: React.FC = () => {
       }
       const data = await response.json();
       localStorage.setItem('access_token', data.access_token);
-      alert('로그인 성공!');
+      localStorage.setItem('username', username);
       navigate('/'); // 로그인 성공 시 루트로 이동
     } catch (err: any) {
       setError(err.message);
