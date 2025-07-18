@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 import os
 
 from .config import DB_URL, JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
@@ -14,6 +16,10 @@ from .schemas import PasswordChangeRequest, AdminCreateRequest
 
 
 app = FastAPI()
+
+# Mount static files (React build output)
+if os.path.exists("frontend/dist"):
+    app.mount("/static", StaticFiles(directory="frontend/dist/static"), name="static")
 
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -126,6 +132,15 @@ def create_admin(
 
 if __name__ == "__main__":
     init_db()
+
+@app.get("/", response_class=HTMLResponse)
+def serve_spa():
+    """Serve React SPA"""
+    try:
+        with open("frontend/dist/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>System Error. Please contact administrator.</h1>")
 
 @app.get("/health")
 def health_check():
