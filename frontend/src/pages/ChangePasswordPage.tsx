@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import React, { useState } from "react";
+import { Box, TextField, Button, Typography, Paper } from "@mui/material";
 
 const ChangePasswordPage: React.FC = () => {
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [error, setError] = useState('');
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) throw new Error('Login required.');
-      const response = await fetch('/change-password', {
-        method: 'POST',
+      const token = localStorage.getItem("access_token");
+      if (!token) throw new Error("Login required.");
+      const response = await fetch("/change-password", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           old_password: oldPassword,
@@ -24,22 +24,22 @@ const ChangePasswordPage: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) {
-        let errorMsg = 'Password change failed.';
+        let errorMsg = "Password change failed.";
         if (response.status === 401) {
-          errorMsg = 'Invalid authentication.';
+          errorMsg = "Invalid authentication.";
         } else if (response.status === 403) {
-          errorMsg = 'You do not have permission to access.';
+          errorMsg = "You do not have permission to access.";
         } else if (response.status === 400) {
-          errorMsg = data.detail || 'Bad request.';
+          errorMsg = data.detail || "Bad request.";
         } else if (data && data.detail) {
           errorMsg = data.detail;
         }
         throw new Error(errorMsg);
       }
-      alert('Password changed successfully.');
-      setOldPassword('');
-      setNewPassword('');
-      setError('');
+      alert("Password changed successfully.");
+      setOldPassword("");
+      setNewPassword("");
+      setError("");
     } catch (err: any) {
       setError(err.message);
     }
@@ -57,7 +57,7 @@ const ChangePasswordPage: React.FC = () => {
           fullWidth
           margin="normal"
           value={oldPassword}
-          onChange={e => setOldPassword(e.target.value)}
+          onChange={(e) => setOldPassword(e.target.value)}
         />
         <TextField
           label="새 비밀번호"
@@ -65,9 +65,15 @@ const ChangePasswordPage: React.FC = () => {
           fullWidth
           margin="normal"
           value={newPassword}
-          onChange={e => setNewPassword(e.target.value)}
+          onChange={(e) => setNewPassword(e.target.value)}
         />
-        <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ mt: 2 }}
+        >
           Change Password
         </Button>
         {error && (
@@ -80,4 +86,4 @@ const ChangePasswordPage: React.FC = () => {
   );
 };
 
-export default ChangePasswordPage; 
+export default ChangePasswordPage;

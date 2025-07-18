@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import React, { useState } from "react";
+import { Box, TextField, Button, Typography, Paper } from "@mui/material";
 
 const CreateAdminPage: React.FC = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) throw new Error('Login required.');
-      const response = await fetch('/create-admin', {
-        method: 'POST',
+      const token = localStorage.getItem("access_token");
+      if (!token) throw new Error("Login required.");
+      const response = await fetch("/create-admin", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           username,
@@ -24,22 +24,22 @@ const CreateAdminPage: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) {
-        let errorMsg = 'Account creation failed.';
+        let errorMsg = "Account creation failed.";
         if (response.status === 401) {
-          errorMsg = 'Invalid authentication.';
+          errorMsg = "Invalid authentication.";
         } else if (response.status === 403) {
-          errorMsg = 'You do not have permission to access.';
+          errorMsg = "You do not have permission to access.";
         } else if (response.status === 400) {
-          errorMsg = data.detail || 'Bad request.';
+          errorMsg = data.detail || "Bad request.";
         } else if (data && data.detail) {
           errorMsg = data.detail;
         }
         throw new Error(errorMsg);
       }
-      alert(data.msg || 'Account created successfully.');
-      setUsername('');
-      setPassword('');
-      setError('');
+      alert(data.msg || "Account created successfully.");
+      setUsername("");
+      setPassword("");
+      setError("");
     } catch (err: any) {
       setError(err.message);
     }
@@ -56,7 +56,7 @@ const CreateAdminPage: React.FC = () => {
           fullWidth
           margin="normal"
           value={username}
-          onChange={e => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value)}
         />
         <TextField
           label="비밀번호"
@@ -64,9 +64,15 @@ const CreateAdminPage: React.FC = () => {
           fullWidth
           margin="normal"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
         />
-        <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ mt: 2 }}
+        >
           Create Account
         </Button>
         {error && (
@@ -79,4 +85,4 @@ const CreateAdminPage: React.FC = () => {
   );
 };
 
-export default CreateAdminPage; 
+export default CreateAdminPage;

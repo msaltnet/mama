@@ -1,19 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 import os
+from datetime import datetime, timedelta
+from typing import List, Optional
 
-from .config import DB_URL, JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from .models import Base, Admin
-from sqlalchemy.orm import Session
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
-from .schemas import PasswordChangeRequest, AdminCreateRequest
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import HTMLResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
+from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
+from .models import Admin, Base, User
+from .schemas import AdminCreateRequest, PasswordChangeRequest, UserRead
 
 app = FastAPI()
 
@@ -24,6 +24,7 @@ if os.path.exists("frontend/dist"):
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 # 테이블 생성 (최초 1회)
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -33,12 +34,8 @@ def init_db():
         super_admin = session.query(Admin).filter_by(is_super_admin=True).first()
         if not super_admin:
             # 비밀번호 해시
-            hashed_pw = bcrypt.hashpw('mama'.encode('utf-8'), bcrypt.gensalt())
-            admin = Admin(
-                username='mama',
-                password=hashed_pw.decode('utf-8'),
-                is_super_admin=True
-            )
+            hashed_pw = bcrypt.hashpw("mama".encode("utf-8"), bcrypt.gensalt())
+            admin = Admin(username="mama", password=hashed_pw.decode("utf-8"), is_super_admin=True)
             session.add(admin)
             session.commit()
             print("[INFO] 슈퍼 관리자(mama/mama) 계정이 생성되었습니다.")
@@ -58,7 +55,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
 
 def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(SessionLocal)):
     credentials_exception = HTTPException(
@@ -78,17 +77,21 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
         raise credentials_exception
     return admin
 
+
 def superuser_required(current_admin: Admin = Depends(get_current_admin)):
     if not bool(current_admin.is_super_admin):
         raise HTTPException(status_code=403, detail="Super admin privileges required.")
     return current_admin
+
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     db = SessionLocal()
     try:
         admin = db.query(Admin).filter(Admin.username == form_data.username).first()
-        if not admin or not bcrypt.checkpw(form_data.password.encode('utf-8'), admin.password.encode('utf-8')):
+        if not admin or not bcrypt.checkpw(
+            form_data.password.encode("utf-8"), admin.password.encode("utf-8")
+        ):
             raise HTTPException(status_code=400, detail="Incorrect username or password")
         access_token = create_access_token(
             data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
@@ -97,11 +100,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     finally:
         db.close()
 
+
 @app.post("/change-password")
-def change_password(
-    req: PasswordChangeRequest,
-    current_admin: Admin = Depends(get_current_admin)
-):
+def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(get_current_admin)):
     db = SessionLocal()
     try:
         admin = db.query(Admin).filter(Admin.id == current_admin.id).first()
@@ -113,11 +114,9 @@ def change_password(
     finally:
         db.close()
 
+
 @app.post("/create-admin")
-def create_admin(
-    req: AdminCreateRequest,
-    current_admin: Admin = Depends(superuser_required)
-):
+def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required)):
     db = SessionLocal()
     try:
         if db.query(Admin).filter(Admin.username == req.username).first():
@@ -130,8 +129,10 @@ def create_admin(
     finally:
         db.close()
 
+
 if __name__ == "__main__":
     init_db()
+
 
 @app.get("/", response_class=HTMLResponse)
 def serve_spa():
@@ -142,6 +143,20 @@ def serve_spa():
     except FileNotFoundError:
         return HTMLResponse(content="<h1>System Error. Please contact administrator.</h1>")
 
+
 @app.get("/health")
 def health_check():
-    return {"status": "ok"} 
+    return {"status": "ok"}
+
+
+@app.get("/users", response_model=List[UserRead])
+def list_users(
+    organization: Optional[str] = None,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(SessionLocal),
+):
+    query = db.query(User)
+    if organization:
+        query = query.filter(User.organization == organization)
+    users = query.all()
+    return users
