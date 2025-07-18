@@ -159,4 +159,17 @@ def list_users(
     if organization:
         query = query.filter(User.organization == organization)
     users = query.all()
-    return users
+    # allowed_models, allowed_services 정보 포함
+    result = []
+    for user in users:
+        result.append({
+            "user_id": user.user_id,
+            "organization": user.organization,
+            "key_value": user.key_value,
+            "extra_info": user.extra_info,
+            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+            "allowed_models": [m.model_name for m in user.allowed_models],
+            "allowed_services": [s.service_name for s in user.allowed_services],
+        })
+    return result

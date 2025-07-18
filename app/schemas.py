@@ -19,6 +19,8 @@ class UserRead(BaseModel):
     extra_info: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    allowed_models: list[str] = []
+    allowed_services: list[str] = []
 
     class Config:
         orm_mode = True
