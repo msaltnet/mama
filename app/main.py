@@ -33,15 +33,15 @@ def init_db():
         super_admin = session.query(Admin).filter_by(is_super_admin=True).first()
         if not super_admin:
             # 비밀번호 해시
-            hashed_pw = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt())
+            hashed_pw = bcrypt.hashpw('mama'.encode('utf-8'), bcrypt.gensalt())
             admin = Admin(
-                username='admin',
+                username='mama',
                 password=hashed_pw.decode('utf-8'),
                 is_super_admin=True
             )
             session.add(admin)
             session.commit()
-            print("[INFO] 슈퍼 관리자(admin/admin) 계정이 생성되었습니다.")
+            print("[INFO] 슈퍼 관리자(mama/mama) 계정이 생성되었습니다.")
         else:
             print("[INFO] 슈퍼 관리자 계정이 이미 존재합니다.")
     finally:

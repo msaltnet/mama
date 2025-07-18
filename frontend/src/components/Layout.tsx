@@ -23,7 +23,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <>
       <AppBar position="static" color="primary" elevation={1} sx={{ mb: 4 }}>
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            sx={{ flexGrow: 1, cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
             mama
           </Typography>
           {username ? (

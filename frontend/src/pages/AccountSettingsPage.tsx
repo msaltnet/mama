@@ -3,13 +3,15 @@ import { Tabs, Tab, Box, Paper } from '@mui/material';
 import ChangePasswordPage from './ChangePasswordPage';
 import CreateAdminPage from './CreateAdminPage';
 
-const tabList = [
+const getTabList = (username: string | null) => [
   { label: 'Change Password' },
-  { label: 'Create Admin Account' },
+  ...(username === 'mama' ? [{ label: 'Create Admin Account' }] : []),
 ];
 
 const AccountSettingsPage: React.FC = () => {
   const [tab, setTab] = useState(0);
+  const username = localStorage.getItem('username');
+  const tabList = getTabList(username);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTab(newValue);
@@ -25,7 +27,7 @@ const AccountSettingsPage: React.FC = () => {
         </Tabs>
         <Box sx={{ mt: 3 }}>
           {tab === 0 && <ChangePasswordPage />}
-          {tab === 1 && <CreateAdminPage />}
+          {tabList[1] && tab === 1 && <CreateAdminPage />}
         </Box>
       </Paper>
     </Box>
