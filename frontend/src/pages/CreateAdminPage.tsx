@@ -40,26 +40,30 @@ const CreateAdminPage: React.FC = () => {
       setUsername("");
       setPassword("");
       setError("");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
     }
   };
 
   return (
     <Paper elevation={3} sx={{ p: 4 }}>
       <Typography variant="h6" align="center" gutterBottom>
-        관리자 계정 생성 (슈퍼관리자 전용)
+        Create Admin Account (Super Admin Only)
       </Typography>
       <Box component="form" onSubmit={handleSubmit}>
         <TextField
-          label="아이디"
+          label="ID"
           fullWidth
           margin="normal"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <TextField
-          label="비밀번호"
+          label="Password"
           type="password"
           fullWidth
           margin="normal"

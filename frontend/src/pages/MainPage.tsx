@@ -18,9 +18,8 @@ import {
   DialogActions,
   TextField,
   Stack,
-  IconButton
 } from "@mui/material";
-import AddIcon from '@mui/icons-material/Add';
+import AddIcon from "@mui/icons-material/Add";
 import { DEBUG } from "../config";
 
 interface User {
@@ -91,22 +90,26 @@ const MainPage: React.FC = () => {
         try {
           const data = JSON.parse(text);
           if (!res.ok) {
-            throw new Error(data.detail || "사용자 정보를 불러오지 못했습니다.");
+            throw new Error(data.detail || "Failed to fetch user information.");
           }
           return data;
         } catch {
-          throw new Error("API에서 JSON이 아닌 응답이 왔습니다: " + text.slice(0, 100));
+          throw new Error("API did not return JSON: " + text.slice(0, 100));
         }
       })
       .then((data) => {
         setUsers(data);
         setError("");
       })
-      .catch((err) => {
-        setError(err.message);
+      .catch((err: unknown) => {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError(String(err));
+        }
       })
       .finally(() => setLoading(false));
-  }, [token, username, DEBUG]);
+  }, [token, username]);
 
   const handleDialogOpen = () => {
     setForm({ user_id: "", organization: "", key_value: "", extra_info: "" });
@@ -121,7 +124,7 @@ const MainPage: React.FC = () => {
   };
   const handleCreateUser = async () => {
     if (!form.user_id || !form.key_value) {
-      setFormError("사용자ID와 Key Value는 필수입니다.");
+      setFormError("User ID and Key Value are required.");
       return;
     }
     setCreating(true);
@@ -156,12 +159,16 @@ const MainPage: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.detail || "사용자 생성 실패");
+        throw new Error(data.detail || "Failed to create user");
       }
       setUsers([...users, data]);
       setDialogOpen(false);
-    } catch (err: any) {
-      setFormError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setFormError(err.message);
+      } else {
+        setFormError(String(err));
+      }
     } finally {
       setCreating(false);
     }
@@ -187,11 +194,18 @@ const MainPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Box
+      sx={{
+        minHeight: "80vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Paper elevation={3} sx={{ p: 4, minWidth: 1100, width: "100%" }}>
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <Typography variant="h5" gutterBottom sx={{ flexGrow: 1 }}>
-            사용자 정보 리스트
+            User List
           </Typography>
           <Button
             variant="contained"
@@ -199,7 +213,7 @@ const MainPage: React.FC = () => {
             onClick={handleDialogOpen}
             sx={{ ml: 2 }}
           >
-            사용자 생성
+            Create User
           </Button>
         </Box>
         {loading ? (
@@ -213,21 +227,21 @@ const MainPage: React.FC = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>사용자ID</TableCell>
-                  <TableCell>조직</TableCell>
+                  <TableCell>User ID</TableCell>
+                  <TableCell>Organization</TableCell>
                   <TableCell>Key Value</TableCell>
-                  <TableCell>추가정보</TableCell>
-                  <TableCell>모델</TableCell>
-                  <TableCell>서비스</TableCell>
-                  <TableCell>생성일</TableCell>
-                  <TableCell>수정일</TableCell>
+                  <TableCell>Extra Info</TableCell>
+                  <TableCell>Models</TableCell>
+                  <TableCell>Services</TableCell>
+                  <TableCell>Created At</TableCell>
+                  <TableCell>Updated At</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
-                      사용자 정보가 없습니다.
+                      No user information available.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -237,10 +251,23 @@ const MainPage: React.FC = () => {
                       <TableCell>{user.organization || "-"}</TableCell>
                       <TableCell>{user.key_value}</TableCell>
                       <TableCell>{user.extra_info || "-"}</TableCell>
-                      <TableCell>{user.allowed_models && user.allowed_models.length > 0 ? user.allowed_models.join(", ") : "-"}</TableCell>
-                      <TableCell>{user.allowed_services && user.allowed_services.length > 0 ? user.allowed_services.join(", ") : "-"}</TableCell>
-                      <TableCell>{user.created_at ? user.created_at.split("T")[0] : "-"}</TableCell>
-                      <TableCell>{user.updated_at ? user.updated_at.split("T")[0] : "-"}</TableCell>
+                      <TableCell>
+                        {user.allowed_models && user.allowed_models.length > 0
+                          ? user.allowed_models.join(", ")
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {user.allowed_services &&
+                        user.allowed_services.length > 0
+                          ? user.allowed_services.join(", ")
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {user.created_at ? user.created_at.split("T")[0] : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {user.updated_at ? user.updated_at.split("T")[0] : "-"}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -248,12 +275,17 @@ const MainPage: React.FC = () => {
             </Table>
           </TableContainer>
         )}
-        <Dialog open={dialogOpen} onClose={handleDialogClose} maxWidth="xs" fullWidth>
-          <DialogTitle>사용자 생성</DialogTitle>
+        <Dialog
+          open={dialogOpen}
+          onClose={handleDialogClose}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Create User</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField
-                label="사용자ID"
+                label="User ID"
                 name="user_id"
                 value={form.user_id}
                 onChange={handleFormChange}
@@ -261,7 +293,7 @@ const MainPage: React.FC = () => {
                 fullWidth
               />
               <TextField
-                label="조직"
+                label="Organization"
                 name="organization"
                 value={form.organization}
                 onChange={handleFormChange}
@@ -276,7 +308,7 @@ const MainPage: React.FC = () => {
                 fullWidth
               />
               <TextField
-                label="추가정보"
+                label="Extra Info"
                 name="extra_info"
                 value={form.extra_info}
                 onChange={handleFormChange}
@@ -286,9 +318,15 @@ const MainPage: React.FC = () => {
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleDialogClose} disabled={creating}>취소</Button>
-            <Button onClick={handleCreateUser} variant="contained" disabled={creating}>
-              {creating ? "생성 중..." : "생성"}
+            <Button onClick={handleDialogClose} disabled={creating}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateUser}
+              variant="contained"
+              disabled={creating}
+            >
+              {creating ? "Creating..." : "Create"}
             </Button>
           </DialogActions>
         </Dialog>

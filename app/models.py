@@ -13,8 +13,12 @@ class Admin(Base):
     username = Column(String(50), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     is_super_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )  # pylint: disable=not-callable
+    updated_at = Column(
+        DateTime(timezone=True), onupdate=func.now()
+    )  # pylint: disable=not-callable
 
     def verify_password(self, plain_password: str) -> bool:
         return bcrypt.checkpw(plain_password.encode("utf-8"), self.password.encode("utf-8"))
@@ -31,8 +35,12 @@ class User(Base):
     organization = Column(String(100))
     key_value = Column(String(255), nullable=False)
     extra_info = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )  # pylint: disable=not-callable
+    updated_at = Column(
+        DateTime(timezone=True), onupdate=func.now()
+    )  # pylint: disable=not-callable
 
     allowed_models = relationship("AllowedModel", back_populates="user")
     allowed_services = relationship("AllowedService", back_populates="user")
@@ -65,7 +73,9 @@ class EventLog(Base):
     event_type = Column(String(50), nullable=False)
     event_detail = Column(Text)
     result = Column(String(50))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )  # pylint: disable=not-callable
 
     user = relationship("User", back_populates="event_logs")
     admin = relationship("Admin")

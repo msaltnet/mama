@@ -52,8 +52,12 @@ const LoginPage: React.FC = () => {
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("username", username);
       navigate("/"); // 로그인 성공 시 루트로 이동
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
     }
   };
 
@@ -68,18 +72,18 @@ const LoginPage: React.FC = () => {
     >
       <Paper elevation={3} sx={{ p: 4, minWidth: 320 }}>
         <Typography variant="h6" align="center" gutterBottom>
-          관리자 로그인
+          Admin Login
         </Typography>
         <Box component="form" onSubmit={handleSubmit}>
           <TextField
-            label="아이디"
+            label="ID"
             fullWidth
             margin="normal"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
           <TextField
-            label="비밀번호"
+            label="Password"
             type="password"
             fullWidth
             margin="normal"
@@ -93,7 +97,7 @@ const LoginPage: React.FC = () => {
             fullWidth
             sx={{ mt: 2 }}
           >
-            로그인
+            Login
           </Button>
           {error && (
             <Typography color="error" align="center" sx={{ mt: 2 }}>

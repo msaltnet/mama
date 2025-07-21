@@ -40,19 +40,23 @@ const ChangePasswordPage: React.FC = () => {
       setOldPassword("");
       setNewPassword("");
       setError("");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
     }
   };
 
   return (
     <Paper elevation={3} sx={{ p: 4 }}>
       <Typography variant="h6" align="center" gutterBottom>
-        비밀번호 변경
+        Change Password
       </Typography>
       <Box component="form" onSubmit={handleSubmit}>
         <TextField
-          label="기존 비밀번호"
+          label="Current Password"
           type="password"
           fullWidth
           margin="normal"
@@ -60,7 +64,7 @@ const ChangePasswordPage: React.FC = () => {
           onChange={(e) => setOldPassword(e.target.value)}
         />
         <TextField
-          label="새 비밀번호"
+          label="New Password"
           type="password"
           fullWidth
           margin="normal"

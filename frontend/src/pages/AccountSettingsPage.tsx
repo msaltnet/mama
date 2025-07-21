@@ -28,7 +28,7 @@ const AccountSettingsPage: React.FC = () => {
     >
       <Paper elevation={3} sx={{ p: 4, minWidth: 400 }}>
         <Tabs value={tab} onChange={handleTabChange} centered>
-          {tabList.map((tab, idx) => (
+          {tabList.map((tab) => (
             <Tab key={tab.label} label={tab.label} />
           ))}
         </Tabs>

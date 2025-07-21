@@ -40,8 +40,8 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Run backend lint (flake8)
-        run: flake8 app --max-line-length 100
+      - name: Run backend lint (pylint)
+        run: pylint app --errors-only --max-line-length 100
 
       - name: Run backend format check (black)
         run: black --check app --line-length 100

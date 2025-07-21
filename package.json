@@ -3,7 +3,7 @@
     "cross-env": "^7.0.3"
   },
   "scripts": {
-    "lint": "flake8 app --max-line-length 100 && cd frontend && npm run lint",
+    "lint": "pylint app --errors-only --max-line-length 100 && cd frontend && npm run lint",
     "format": "black app --line-length 100 && isort app && cd frontend && npx prettier --write src *.js *.ts *.json"
   }
 }
