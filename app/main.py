@@ -13,8 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
 from .models import Admin, Base, User
-from .schemas import (AdminCreateRequest, PasswordChangeRequest,
-                      UserCreateRequest, UserRead)
+from .schemas import AdminCreateRequest, PasswordChangeRequest, UserCreateRequest, UserRead
 
 app = FastAPI()
 

@@ -4,6 +4,7 @@
   },
   "scripts": {
     "lint": "pylint app --errors-only --max-line-length 100 && cd frontend && npm run lint",
-    "format": "black app --line-length 100 && isort app && cd frontend && npx prettier --write src *.js *.ts *.json"
+    "format": "black app --line-length 100 && cd frontend && npx prettier --write src *.js *.ts *.json",
+    "lf": "npm run lint && npm run format"
   }
 }
