@@ -28,3 +28,10 @@ class UserRead(BaseModel):
 
 class UserListRequest(BaseModel):
     organization: str | None = None
+
+
+class UserCreateRequest(BaseModel):
+    user_id: str
+    organization: str | None = None
+    key_value: str
+    extra_info: str | None = None

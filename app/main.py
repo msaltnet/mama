@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
 from .models import Admin, Base, User
-from .schemas import AdminCreateRequest, PasswordChangeRequest, UserRead
+from .schemas import AdminCreateRequest, PasswordChangeRequest, UserRead, UserCreateRequest
 
 app = FastAPI()
 
@@ -173,3 +173,34 @@ def list_users(
             "allowed_services": [s.service_name for s in user.allowed_services],
         })
     return result
+
+
+@app.post("/users", response_model=UserRead)
+def create_user(
+    req: UserCreateRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(SessionLocal),
+):
+    # user_id 중복 체크
+    if db.query(User).filter(User.user_id == req.user_id).first():
+        raise HTTPException(status_code=400, detail="이미 존재하는 사용자 ID입니다.")
+    user = User(
+        user_id=req.user_id,
+        organization=req.organization,
+        key_value=req.key_value,
+        extra_info=req.extra_info,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    # allowed_models, allowed_services는 빈 리스트로 반환
+    return {
+        "user_id": user.user_id,
+        "organization": user.organization,
+        "key_value": user.key_value,
+        "extra_info": user.extra_info,
+        "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+        "allowed_models": [],
+        "allowed_services": [],
+    }

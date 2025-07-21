@@ -11,7 +11,16 @@ import {
   TableRow,
   CircularProgress,
   Alert,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Stack,
+  IconButton
 } from "@mui/material";
+import AddIcon from '@mui/icons-material/Add';
 import { DEBUG } from "../config";
 
 interface User {
@@ -31,6 +40,15 @@ const MainPage: React.FC = () => {
   const [error, setError] = useState("");
   const username = localStorage.getItem("username");
   const token = localStorage.getItem("access_token");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({
+    user_id: "",
+    organization: "",
+    key_value: "",
+    extra_info: "",
+  });
+  const [formError, setFormError] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!username) return;
@@ -90,6 +108,65 @@ const MainPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [token, username, DEBUG]);
 
+  const handleDialogOpen = () => {
+    setForm({ user_id: "", organization: "", key_value: "", extra_info: "" });
+    setFormError("");
+    setDialogOpen(true);
+  };
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+  };
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+  const handleCreateUser = async () => {
+    if (!form.user_id || !form.key_value) {
+      setFormError("사용자ID와 Key Value는 필수입니다.");
+      return;
+    }
+    setCreating(true);
+    setFormError("");
+    try {
+      if (DEBUG) {
+        setUsers([
+          ...users,
+          {
+            user_id: form.user_id,
+            organization: form.organization,
+            key_value: form.key_value,
+            extra_info: form.extra_info,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            allowed_models: [],
+            allowed_services: [],
+          },
+        ]);
+        setDialogOpen(false);
+        setCreating(false);
+        return;
+      }
+      const token = localStorage.getItem("access_token");
+      const response = await fetch("/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "사용자 생성 실패");
+      }
+      setUsers([...users, data]);
+      setDialogOpen(false);
+    } catch (err: any) {
+      setFormError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (!username) {
     return (
       <Box
@@ -112,9 +189,19 @@ const MainPage: React.FC = () => {
   return (
     <Box sx={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Paper elevation={3} sx={{ p: 4, minWidth: 1100, width: "100%" }}>
-        <Typography variant="h5" gutterBottom>
-          사용자 정보 리스트
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+          <Typography variant="h5" gutterBottom sx={{ flexGrow: 1 }}>
+            사용자 정보 리스트
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleDialogOpen}
+            sx={{ ml: 2 }}
+          >
+            사용자 생성
+          </Button>
+        </Box>
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
             <CircularProgress />
@@ -161,6 +248,50 @@ const MainPage: React.FC = () => {
             </Table>
           </TableContainer>
         )}
+        <Dialog open={dialogOpen} onClose={handleDialogClose} maxWidth="xs" fullWidth>
+          <DialogTitle>사용자 생성</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="사용자ID"
+                name="user_id"
+                value={form.user_id}
+                onChange={handleFormChange}
+                required
+                fullWidth
+              />
+              <TextField
+                label="조직"
+                name="organization"
+                value={form.organization}
+                onChange={handleFormChange}
+                fullWidth
+              />
+              <TextField
+                label="Key Value"
+                name="key_value"
+                value={form.key_value}
+                onChange={handleFormChange}
+                required
+                fullWidth
+              />
+              <TextField
+                label="추가정보"
+                name="extra_info"
+                value={form.extra_info}
+                onChange={handleFormChange}
+                fullWidth
+              />
+              {formError && <Alert severity="error">{formError}</Alert>}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDialogClose} disabled={creating}>취소</Button>
+            <Button onClick={handleCreateUser} variant="contained" disabled={creating}>
+              {creating ? "생성 중..." : "생성"}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Paper>
     </Box>
   );
