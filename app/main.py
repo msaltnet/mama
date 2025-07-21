@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
 from .models import Admin, Base, User
 from .schemas import AdminCreateRequest, PasswordChangeRequest, UserCreateRequest, UserRead
+import random
 
 app = FastAPI()
 
@@ -149,6 +150,37 @@ def health_check():
     return {"status": "ok"}
 
 
+# 조류 이름 리스트
+BIRD_NAMES = [
+    "sparrow",
+    "eagle",
+    "owl",
+    "parrot",
+    "falcon",
+    "heron",
+    "crane",
+    "duck",
+    "swan",
+    "magpie",
+    "woodpecker",
+    "kingfisher",
+    "pigeon",
+    "dove",
+    "wren",
+    "robin",
+    "finch",
+    "tit",
+    "jay",
+    "lark",
+]
+
+
+def get_random_bird_key():
+    bird = random.choice(BIRD_NAMES)
+    num = random.randint(1000, 9999)
+    return f"{bird}-{num}"
+
+
 @app.get("/users", response_model=List[UserRead])
 def list_users(
     organization: Optional[str] = None,
@@ -186,10 +218,11 @@ def create_user(
     # user_id 중복 체크
     if db.query(User).filter(User.user_id == req.user_id).first():
         raise HTTPException(status_code=400, detail="이미 존재하는 사용자 ID입니다.")
+    key_value = get_random_bird_key()
     user = User(
         user_id=req.user_id,
         organization=req.organization,
-        key_value=req.key_value,
+        key_value=key_value,
         extra_info=req.extra_info,
     )
     db.add(user)

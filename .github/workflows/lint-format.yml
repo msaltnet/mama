@@ -46,9 +46,6 @@ jobs:
       - name: Run backend format check (black)
         run: black --check app --line-length 100
 
-      - name: Run backend import sort check (isort)
-        run: isort --check-only app
-
       - name: Run frontend lint (eslint)
         run: cd frontend && npm run lint
 

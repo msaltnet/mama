@@ -49,6 +49,35 @@ const MainPage: React.FC = () => {
   const [formError, setFormError] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // 조류 이름 배열 추가
+  const BIRD_NAMES = [
+    "sparrow",
+    "eagle",
+    "owl",
+    "parrot",
+    "falcon",
+    "heron",
+    "crane",
+    "duck",
+    "swan",
+    "magpie",
+    "woodpecker",
+    "kingfisher",
+    "pigeon",
+    "dove",
+    "wren",
+    "robin",
+    "finch",
+    "tit",
+    "jay",
+    "lark",
+  ];
+  function getRandomBirdKey() {
+    const bird = BIRD_NAMES[Math.floor(Math.random() * BIRD_NAMES.length)];
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `${bird}-${num}`;
+  }
+
   useEffect(() => {
     if (!username) return;
     if (DEBUG) {
@@ -141,7 +170,7 @@ const MainPage: React.FC = () => {
           {
             user_id: form.user_id,
             organization: form.organization,
-            key_value: "", // 백엔드에서 생성
+            key_value: getRandomBirdKey(), // 조류 이름 기반 랜덤 키
             extra_info: form.extra_info,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
