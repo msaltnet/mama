@@ -43,7 +43,7 @@ const MainPage: React.FC = () => {
   const [form, setForm] = useState({
     user_id: "",
     organization: "",
-    key_value: "",
+    allowed_models: "",
     extra_info: "",
   });
   const [formError, setFormError] = useState("");
@@ -112,7 +112,12 @@ const MainPage: React.FC = () => {
   }, [token, username]);
 
   const handleDialogOpen = () => {
-    setForm({ user_id: "", organization: "", key_value: "", extra_info: "" });
+    setForm({
+      user_id: "",
+      organization: "",
+      allowed_models: "",
+      extra_info: "",
+    });
     setFormError("");
     setDialogOpen(true);
   };
@@ -123,8 +128,8 @@ const MainPage: React.FC = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
   const handleCreateUser = async () => {
-    if (!form.user_id || !form.key_value) {
-      setFormError("User ID and Key Value are required.");
+    if (!form.user_id || !form.allowed_models) {
+      setFormError("User ID and Allowed Models are required.");
       return;
     }
     setCreating(true);
@@ -136,11 +141,11 @@ const MainPage: React.FC = () => {
           {
             user_id: form.user_id,
             organization: form.organization,
-            key_value: form.key_value,
+            key_value: "", // 백엔드에서 생성
             extra_info: form.extra_info,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            allowed_models: [],
+            allowed_models: form.allowed_models.split(",").map((s) => s.trim()),
             allowed_services: [],
           },
         ]);
@@ -278,7 +283,7 @@ const MainPage: React.FC = () => {
         <Dialog
           open={dialogOpen}
           onClose={handleDialogClose}
-          maxWidth="xs"
+          maxWidth="sm"
           fullWidth
         >
           <DialogTitle>Create User</DialogTitle>
@@ -300,12 +305,13 @@ const MainPage: React.FC = () => {
                 fullWidth
               />
               <TextField
-                label="Key Value"
-                name="key_value"
-                value={form.key_value}
+                label="Allowed Models"
+                name="allowed_models"
+                value={form.allowed_models}
                 onChange={handleFormChange}
                 required
                 fullWidth
+                helperText="Enter model names separated by commas (e.g. gpt-3.5-turbo, gpt-4)"
               />
               <TextField
                 label="Extra Info"
