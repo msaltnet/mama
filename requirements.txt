@@ -1,4 +1,5 @@
 fastapi
+uvicorn[standard]
 PyJWT
 bcrypt
 python-dotenv
