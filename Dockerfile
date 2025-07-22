@@ -31,9 +31,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
-COPY wait-for-db.py .
 
-# Copy built frontend files
+# frontend 빌드 파일 복사
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 # Expose port

@@ -25,9 +25,8 @@ import random
 
 app = FastAPI()
 
-# Mount static files (React build output)
-if os.path.exists("frontend/dist"):
-    app.mount("/static", StaticFiles(directory="frontend/dist/static"), name="static")
+# 정적 파일(프론트엔드 빌드 결과) 서빙
+app.mount("/", StaticFiles(directory="./frontend/dist", html=True), name="static")
 
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

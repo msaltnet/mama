@@ -12,24 +12,10 @@ services:
     ports:
       - "5432:5432"
 
-  frontend-build:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: mama-frontend:latest
-    profiles:
-      - build
-
-  backend-build:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    image: mama-backend:latest
-    profiles:
-      - build
-
-  backend:
-    image: mama-backend:latest
+      dockerfile: Dockerfile
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
@@ -43,13 +29,6 @@ services:
       - db
     volumes:
       - ./.env:/app/.env
-
-  frontend:
-    image: mama-frontend:latest
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
 
 volumes:
   postgres_data: 
