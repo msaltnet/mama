@@ -16,3 +16,6 @@ DB_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_jwt_secret")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60
+
+# Server API Key
+SERVER_API_KEY = os.getenv("SERVER_API_KEY", "your_serve_api_key")

@@ -4,16 +4,23 @@ from typing import List, Optional
 
 import bcrypt
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Body, Header
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY
+from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY
 from .models import Admin, Base, User
-from .schemas import AdminCreateRequest, PasswordChangeRequest, UserCreateRequest, UserRead
+from .schemas import (
+    AdminCreateRequest,
+    PasswordChangeRequest,
+    UserCreateRequest,
+    UserRead,
+    KeyRequest,
+    KeyResponse,
+)
 import random
 
 app = FastAPI()
@@ -242,15 +249,31 @@ def create_user(
     }
 
 
+def verify_serve_api_key(authorization: str = Header(None)):
+    if authorization != SERVER_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+
+
 @app.get("/key/{user_id}")
 def get_user_key(
     user_id: str,
-    current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(SessionLocal),
+    authorization: str = Header(None),
 ):
-    """사용자의 키를 반환하는 API"""
+    verify_serve_api_key(authorization)
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-
     return {"key": user.key_value}
+
+
+@app.post("/key/info", response_model=list[KeyResponse])
+def get_keys(
+    req: KeyRequest = Body(...),
+    db: Session = Depends(SessionLocal),
+    authorization: str = Header(None),
+):
+    verify_serve_api_key(authorization)
+    users = db.query(User).filter(User.user_id.in_(req.user_ids)).all()
+    result = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
+    return result

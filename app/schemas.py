@@ -34,3 +34,12 @@ class UserCreateRequest(BaseModel):
     user_id: str
     organization: str | None = None
     extra_info: str | None = None
+
+
+class KeyRequest(BaseModel):
+    user_ids: list[str]
+
+
+class KeyResponse(BaseModel):
+    user_id: str
+    user_key: str

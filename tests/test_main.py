@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.main import app, get_current_admin, SessionLocal
 from app.models import Base, Admin, User
-from app.config import JWT_SECRET_KEY, JWT_ALGORITHM
+from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, SERVER_API_KEY
 import jwt
 from datetime import datetime, timedelta
 from fastapi import HTTPException, Depends
@@ -120,28 +120,22 @@ def test_user():
 class TestGetUserKey:
     """사용자 키 조회 API 테스트"""
     
-    def test_get_user_key_success(self, admin_token, test_user):
-        """정상적인 키 조회 테스트"""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+    def test_get_user_key_success(self, test_user):
+        headers = {"Authorization": SERVER_API_KEY}
         response = client.get(f"/key/{test_user.user_id}", headers=headers)
-        
         assert response.status_code == 200
         assert response.json() == {"key": "sparrow-1234"}
     
-    def test_get_user_key_not_found(self, admin_token):
-        """존재하지 않는 사용자 조회 테스트"""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+    def test_get_user_key_not_found(self):
+        headers = {"Authorization": SERVER_API_KEY}
         response = client.get("/key/nonexistent_user", headers=headers)
-        
         assert response.status_code == 404
         assert response.json()["detail"] == "사용자를 찾을 수 없습니다."
-    
+
     def test_get_user_key_unauthorized(self, test_user):
-        """인증되지 않은 요청 테스트"""
         response = client.get(f"/key/{test_user.user_id}")
-        
         assert response.status_code == 401
-        assert response.json()["detail"] == "Not authenticated"
+        assert response.json()["detail"] == "Invalid or missing API key."
 
 
 class TestLogin:
@@ -246,3 +240,52 @@ class TestListUsers:
         
         assert response.status_code == 200
         assert response.json() == [] 
+
+
+class TestGetKeys:
+    """/key API 단체 사용자 키 조회 테스트"""
+
+    def test_get_keys_success(self, test_user):
+        db = TestingSessionLocal()
+        try:
+            user2 = User(
+                user_id="test_user2",
+                organization="test_org2",
+                key_value="owl-5678",
+                extra_info="두번째 사용자"
+            )
+            db.add(user2)
+            db.commit()
+        finally:
+            db.close()
+
+        headers = {"Authorization": SERVER_API_KEY}
+        payload = {"user_ids": [test_user.user_id, "test_user2"]}
+        response = client.post("/key/info", json=payload, headers=headers)
+        assert response.status_code == 200
+        result = response.json()
+        assert {"user_id": test_user.user_id, "user_key": test_user.key_value} in result
+        assert {"user_id": "test_user2", "user_key": "owl-5678"} in result
+        assert len(result) == 2
+
+    def test_get_keys_partial_found(self, test_user):
+        headers = {"Authorization": SERVER_API_KEY}
+        payload = {"user_ids": [test_user.user_id, "not_exist_user"]}
+        response = client.post("/key/info", json=payload, headers=headers)
+        assert response.status_code == 200
+        result = response.json()
+        assert {"user_id": test_user.user_id, "user_key": test_user.key_value} in result
+        assert len(result) == 1
+
+    def test_get_keys_empty(self):
+        headers = {"Authorization": SERVER_API_KEY}
+        payload = {"user_ids": []}
+        response = client.post("/key/info", json=payload, headers=headers)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_keys_unauthorized(self, test_user):
+        payload = {"user_ids": [test_user.user_id]}
+        response = client.post("/key/info", json=payload)
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or missing API key." 

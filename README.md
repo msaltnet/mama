@@ -136,20 +136,25 @@ uvicorn app.main:app --reload
 
 > 개발 중에는 Vite dev 서버(`npm run dev`)를 사용하면 핫리로드 등 개발이 더 편리합니다.
 
-### 5. Lint & Format (코드 스타일 검사/자동정렬)
+### Testing
 
-- **전체 린트 검사**
+- Backend unit test test
+   ```bash
+   python -m pytest .
+   ```
+
+- 전체 린트 검사
   ```bash
   npm run lint
   ```
-  - 백엔드: flake8(app)
+  - 백엔드: pylint(app)
   - 프론트엔드: ESLint(frontend)
 
-- **전체 코드 자동 포맷**
+- 전체 코드 자동 포맷
   ```bash
   npm run format
   ```
-  - 백엔드: black, isort(app)
+  - 백엔드: black(app)
   - 프론트엔드: Prettier(frontend)
 
 ## Deployment Guide
@@ -170,13 +175,13 @@ docker-compose up -d
 프로젝트 루트에서 아래 명령어 실행. Dockerfile이 하나로 프론트엔드 빌드 후 백엔드에 포함
 
 ```bash
-docker build -t mama-allinone .
+docker build -t mama .
 ```
 
 빌드된 이미지 실행
 
 ```bash
-docker run -p 8000:8000 --env-file .env mama-allinone
+docker run -p 8000:8000 --env-file .env mama
 ```
 
 - 접속(프론트엔드와 백엔드가 모두 FastAPI에서 서빙됨): http://localhost:8000
@@ -205,6 +210,6 @@ docker build -t mama-frontend .
 docker run -p 80:80 mama-frontend
 ```
 
-### 참고사항
+**참고사항**
 - Dockerfile만 사용할 경우, DB 등 다른 서비스는 별도로 띄워야 합니다.
 - 여러 컨테이너를 연동하거나, 마이그레이션 등 자동화가 필요하면 docker-compose 사용을 권장합니다.
