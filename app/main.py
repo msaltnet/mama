@@ -31,6 +31,16 @@ app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# DB 세션 의존성 함수
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 # 테이블 생성 (최초 1회)
 def init_db():
@@ -66,7 +76,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 
-def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(SessionLocal)):
+def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -92,7 +102,7 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 
 
 @app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(SessionLocal)):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
         admin = db.query(Admin).filter(Admin.username == form_data.username).first()
         if not admin or not bcrypt.checkpw(
@@ -109,7 +119,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.post("/change-password")
 def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(get_current_admin)):
-    db = SessionLocal()
+    db = next(get_db())
     try:
         admin = db.query(Admin).filter(Admin.id == current_admin.id).first()
         if not admin or not admin.verify_password(req.old_password):
@@ -123,7 +133,7 @@ def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(g
 
 @app.post("/create-admin")
 def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required)):
-    db = SessionLocal()
+    db = next(get_db())
     try:
         if db.query(Admin).filter(Admin.username == req.username).first():
             raise HTTPException(status_code=400, detail="Admin username already exists.")
@@ -190,7 +200,7 @@ def get_random_bird_key():
 def list_users(
     organization: Optional[str] = None,
     current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(SessionLocal),
+    db: Session = Depends(get_db),
 ):
     query = db.query(User)
     if organization:
@@ -219,7 +229,7 @@ def list_users(
 def create_user(
     req: UserCreateRequest,
     current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(SessionLocal),
+    db: Session = Depends(get_db),
 ):
     # user_id 중복 체크
     if db.query(User).filter(User.user_id == req.user_id).first():
@@ -256,7 +266,7 @@ def verify_serve_api_key(authorization: str = Header(None)):
 @app.get("/key/{user_id}")
 def get_user_key(
     user_id: str,
-    db: Session = Depends(SessionLocal),
+    db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
     verify_serve_api_key(authorization)
@@ -269,7 +279,7 @@ def get_user_key(
 @app.post("/key/info", response_model=list[KeyResponse])
 def get_keys(
     req: KeyRequest = Body(...),
-    db: Session = Depends(SessionLocal),
+    db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
     verify_serve_api_key(authorization)

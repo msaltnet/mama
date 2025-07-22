@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from app.main import app, get_current_admin, SessionLocal
+from app.main import app, get_current_admin, get_db
 from app.models import Base, Admin, User
 from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, SERVER_API_KEY
 import jwt
@@ -59,7 +59,7 @@ def override_get_current_admin(token: str = Depends(oauth2_scheme), db: Session 
 
 
 # 의존성 오버라이드 설정
-app.dependency_overrides[SessionLocal] = override_get_db
+app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[get_current_admin] = override_get_current_admin
 
 # 테스트용 클라이언트 생성
