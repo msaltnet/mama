@@ -145,11 +145,6 @@ def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superus
     finally:
         db.close()
 
-
-if __name__ == "__main__":
-    init_db()
-
-
 @app.get("/", response_class=HTMLResponse)
 def serve_spa():
     """Serve React SPA"""

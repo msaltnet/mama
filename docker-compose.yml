@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15
@@ -40,7 +38,6 @@ services:
       POSTGRES_DB: mama_db
       POSTGRES_USER: mama_user
       POSTGRES_PASSWORD: mama_password
-      JWT_SECRET_KEY: your_jwt_secret_key_here
     depends_on:
       - db
     command: alembic upgrade head
