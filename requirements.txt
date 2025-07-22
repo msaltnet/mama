@@ -9,3 +9,5 @@ alembic
 python-multipart 
 pylint
 black
+pytest
+httpx

@@ -86,8 +86,7 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 
 
 @app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    db = SessionLocal()
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(SessionLocal)):
     try:
         admin = db.query(Admin).filter(Admin.username == form_data.username).first()
         if not admin or not bcrypt.checkpw(
@@ -196,6 +195,7 @@ def list_users(
     for user in users:
         result.append(
             {
+                "id": user.id,
                 "user_id": user.user_id,
                 "organization": user.organization,
                 "key_value": user.key_value,
@@ -230,6 +230,7 @@ def create_user(
     db.refresh(user)
     # allowed_models, allowed_services는 빈 리스트로 반환
     return {
+        "id": user.id,
         "user_id": user.user_id,
         "organization": user.organization,
         "key_value": user.key_value,
@@ -239,3 +240,17 @@ def create_user(
         "allowed_models": [],
         "allowed_services": [],
     }
+
+
+@app.get("/key/{user_id}")
+def get_user_key(
+    user_id: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(SessionLocal),
+):
+    """사용자의 키를 반환하는 API"""
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    return {"key": user.key_value}
