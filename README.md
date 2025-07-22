@@ -167,6 +167,12 @@ uvicorn app.main:app --reload
 docker compose up -d --build
 ```
 
+DB 마이그레이션 수행
+
+```bash
+docker compose run --rm migrate
+```
+
 - 웹 애플리케이션: http://localhost:8000
 - API 문서: http://localhost:8000/docs
 
