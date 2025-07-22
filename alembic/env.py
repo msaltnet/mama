@@ -5,17 +5,11 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app')))
-from app.models import Base
+from app import models  # 전체 모델 import
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-import os
-from dotenv import load_dotenv
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app')))
-from app.models import Base
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -28,7 +22,7 @@ DB_URL = f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB
 
 config.set_main_option('sqlalchemy.url', DB_URL)
 
-target_metadata = Base.metadata
+target_metadata = models.Base.metadata
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
