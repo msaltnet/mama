@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  tinyllama1:
+    image: ollama/ollama
+    container_name: tinyllama1
+    ports:
+      - "11431:11434"
+    volumes:
+      - tinyllama1_data:/root/.ollama
+    entrypoint: ollama
+    command: serve
+
+  tinyllama2:
+    image: ollama/ollama
+    container_name: tinyllama2
+    ports:
+      - "11432:11434"
+    volumes:
+      - tinyllama2_data:/root/.ollama
+    entrypoint: ollama
+    command: serve
+
+  tinyllama3:
+    image: ollama/ollama
+    container_name: tinyllama3
+    ports:
+      - "11433:11434"
+    volumes:
+      - tinyllama3_data:/root/.ollama
+    entrypoint: ollama
+    command: serve
+
+  postgres:
+    image: postgres:15
+    container_name: litellm-db
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: litellm
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: litellm
+    ports:
+      - "4444:4000"
+    volumes:
+      - ./litellm_settings.yml:/app/config.yml
+    environment:
+      - DATABASE_URL=postgresql://litellm:secret@litellm-db:5432/litellm
+      - LITELLM_MASTER_KEY="sk-1234" # Your master key for the proxy server. Can use this to send /chat/completion requests etc
+      - LITELLM_SALT_KEY="sk-XXXXXXXX" # Can NOT CHANGE THIS ONCE SET - It is used to encrypt/decrypt credentials stored in DB. If value of 'LITELLM_SALT_KEY' changes your models cannot be retrieved from DB
+      - UI_USERNAME=admin
+      - UI_PASSWORD=admin
+    depends_on:
+      - postgres
+      - tinyllama1
+      - tinyllama2
+      - tinyllama3
+
+volumes:
+  db_data:
+  tinyllama1_data:
+  tinyllama2_data:
+  tinyllama3_data:

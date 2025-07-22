@@ -1,0 +1,21 @@
+general_settings:
+  master_key: localtestkey
+
+model_list:
+  - model_name: tinyllama1
+    litellm_params:
+      model: tinyllama
+      api_base: http://tinyllama1:11434
+      mode: ollama
+
+  - model_name: tinyllama2
+    litellm_params:
+      model: tinyllama
+      api_base: http://tinyllama2:11434
+      mode: ollama
+
+  - model_name: tinyllama3
+    litellm_params:
+      model: tinyllama
+      api_base: http://tinyllama3:11434
+      mode: ollama
