@@ -164,7 +164,7 @@ uvicorn app.main:app --reload
 백엔드와 프론트엔드가 하나의 서버에서 실행됩니다.
 
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
 - 웹 애플리케이션: http://localhost:8000

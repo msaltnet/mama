@@ -25,8 +25,8 @@ import random
 
 app = FastAPI()
 
-# 정적 파일(프론트엔드 빌드 결과) 서빙
-app.mount("/", StaticFiles(directory="./frontend/dist", html=True), name="static")
+# 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
+app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="static")
 
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
