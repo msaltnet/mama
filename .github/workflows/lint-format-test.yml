@@ -1,4 +1,4 @@
-name: Lint & Format Check
+name: Lint, Format & Test Check
 
 on:
   push:
@@ -51,3 +51,36 @@ jobs:
 
       - name: Run frontend format check (prettier)
         run: cd frontend && npx prettier --check src *.js *.ts *.json 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run backend tests (pytest)
+        run: python -m pytest .\tests\unit\
+
+      - name: Run frontend tests (vitest)
+        run: |
+          cd frontend
+          npm run test -- --run 
