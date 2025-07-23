@@ -21,6 +21,7 @@ services:
       POSTGRES_USER: mama_user
       POSTGRES_PASSWORD: mama_password
       JWT_SECRET_KEY: your_jwt_secret_key_here
+      SERVER_API_KEY: your_server_api_key_here
     ports:
       - "8000:8000"
     depends_on:

@@ -134,7 +134,6 @@ def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(g
     finally:
         db.close()
 
-
 @app.post("/create-admin")
 def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required)):
     db = next(get_db())
@@ -258,8 +257,9 @@ def create_user(
     }
 
 
-def verify_serve_api_key(authorization: str = Header(None)):
-    if authorization != SERVER_API_KEY:
+def verify_server_api_key(x_api_key: str = Header(None)):
+    print(f"x_api_key: {x_api_key}")
+    if x_api_key != SERVER_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 
@@ -267,9 +267,9 @@ def verify_serve_api_key(authorization: str = Header(None)):
 def get_user_key(
     user_id: str,
     db: Session = Depends(get_db),
-    authorization: str = Header(None),
+    x_api_key: str = Header(None),
 ):
-    verify_serve_api_key(authorization)
+    verify_server_api_key(x_api_key)
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
@@ -280,9 +280,9 @@ def get_user_key(
 def get_keys(
     req: KeyRequest = Body(...),
     db: Session = Depends(get_db),
-    authorization: str = Header(None),
+    x_api_key: str = Header(None),
 ):
-    verify_serve_api_key(authorization)
+    verify_server_api_key(x_api_key)
     users = db.query(User).filter(User.user_id.in_(req.user_ids)).all()
     result = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
     return result
