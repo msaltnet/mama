@@ -46,9 +46,8 @@ def init_db():
     try:
         super_admin = session.query(Admin).filter_by(is_super_admin=True).first()
         if not super_admin:
-            # 비밀번호 해시
-            hashed_pw = bcrypt.hashpw("mama".encode("utf-8"), bcrypt.gensalt())
-            admin = Admin(username="mama", password=hashed_pw.decode("utf-8"), is_super_admin=True)
+            admin = Admin(username="mama", is_super_admin=True)
+            admin.set_password("mama")
             session.add(admin)
             session.commit()
             print("[INFO] 슈퍼 관리자(mama/mama) 계정이 생성되었습니다.")
@@ -112,9 +111,7 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
         admin = db.query(Admin).filter(Admin.username == form_data.username).first()
-        if not admin or not bcrypt.checkpw(
-            form_data.password.encode("utf-8"), admin.password.encode("utf-8")
-        ):
+        if not admin or not admin.verify_password(form_data.password):
             raise HTTPException(status_code=400, detail="Incorrect username or password")
         access_token = create_access_token(
             data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
