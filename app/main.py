@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import bcrypt
 import jwt
+from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, status, Body, Header
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -23,6 +24,13 @@ from .schemas import (
 )
 import random
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup 단계
+    init_db()
+    yield
+    # shutdown 단계 (필요하면 여기에 종료 처리 추가)
+
 app = FastAPI()
 
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
@@ -30,7 +38,6 @@ app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="
 
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 
 # DB 세션 의존성 함수
 def init_db():
