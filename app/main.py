@@ -31,20 +31,9 @@ app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 # DB 세션 의존성 함수
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# 테이블 생성 (최초 1회)
 def init_db():
-    Base.metadata.create_all(bind=engine)
     # 슈퍼 관리자(admin/admin) 자동 생성
     session = Session(bind=engine)
     try:
@@ -60,6 +49,17 @@ def init_db():
             print("[INFO] 슈퍼 관리자 계정이 이미 존재합니다.")
     finally:
         session.close()
+
+
+init_db()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -144,6 +144,7 @@ def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superus
         return {"msg": f"관리자 계정({req.username})이 성공적으로 생성되었습니다."}
     finally:
         db.close()
+
 
 @app.get("/", response_class=HTMLResponse)
 def serve_spa():
