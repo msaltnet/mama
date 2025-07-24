@@ -1,6 +1,6 @@
 import os
 import requests
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
 LITELLM_MASTER_KEY = os.getenv("LITELLM_MASTER_KEY", "sk-1234")
@@ -9,6 +9,23 @@ class LiteLLMService:
     def __init__(self, base_url: Optional[str] = None, master_key: Optional[str] = None):
         self.base_url = base_url or LITELLM_URL
         self.master_key = master_key or LITELLM_MASTER_KEY
+
+    def get_models(self) -> List[Dict[str, Any]]:
+        """
+        LiteLLM에서 사용 가능한 모델 리스트를 가져옵니다.
+        :return: 모델 정보 리스트
+        :raises: Exception (API 실패 시)
+        """
+        url = f"{self.base_url}/models"
+        headers = {
+            "Authorization": f"Bearer {self.master_key}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"LiteLLM 모델 리스트 조회 실패: {resp.status_code} {resp.text}")
+        data = resp.json()
+        return data.get("data", [])
 
     def generate_key(self, models: List[str], user_id: Optional[str] = None, metadata: Optional[dict] = None) -> str:
         """
@@ -37,4 +54,4 @@ class LiteLLMService:
         key = data.get("key") or data.get("token")
         if not key:
             raise Exception(f"LiteLLM Key 응답에 key 없음: {data}")
-        return key 
+        return key

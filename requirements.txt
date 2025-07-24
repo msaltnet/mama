@@ -12,3 +12,4 @@ pylint
 black
 pytest
 httpx
+requests
