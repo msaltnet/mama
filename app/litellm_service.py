@@ -72,3 +72,21 @@ class LiteLLMService:
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 삭제 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
+
+    def get_key_alias(self, key: str) -> Optional[dict]:
+        """
+        LiteLLM Key의 alias(별칭) 조회 (GET 방식)
+        :param key: 조회할 key(str)
+        :return: aliases(dict) 또는 None
+        :raises: Exception (API 실패 시)
+        """
+        url = f"{self.base_url}/key/info?key={key}"
+        headers = {
+            "Authorization": f"Bearer {self.master_key}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"LiteLLM Key alias 조회 실패: {resp.status_code} {resp.text}")
+        data = resp.json()
+        return data.get("info", {}).get("aliases")

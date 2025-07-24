@@ -65,3 +65,21 @@ def test_delete_key_fail_invalid_master_key():
         # 임의의 키 값 사용 (실제 존재하지 않아도 무방)
         service.delete_key("sk-nonexistent-key")
     assert "LiteLLM Key 삭제 실패" in str(excinfo.value)
+
+@pytest.mark.integration
+def test_key_alias_lifecycle():
+    """
+    키를 생성 → alias 조회 → 삭제하는 end-to-end 테스트
+    """
+    service = LiteLLMService(base_url=LITELLM_URL, master_key=LITELLM_MASTER_KEY)
+    models = ["gpt-3.5-turbo"]
+    key = service.generate_key(models=models, user_id="alias-lifecycle-user", metadata={"test": True})
+    assert key.startswith("sk-")
+    # alias 조회
+    alias = service.get_key_alias(key)
+    # alias는 None일 수도 있으나, API가 정상 동작하면 통과
+    assert alias is not None
+    print(f"생성된 키: {key}, alias: {alias}")
+    # 삭제
+    service.delete_key(key)
+    print(f"키 삭제 성공: {key}")
