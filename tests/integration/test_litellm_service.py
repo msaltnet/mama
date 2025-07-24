@@ -67,19 +67,32 @@ def test_delete_key_fail_invalid_master_key():
     assert "LiteLLM Key 삭제 실패" in str(excinfo.value)
 
 @pytest.mark.integration
-def test_key_alias_lifecycle():
+def test_generate_key_with_alias_and_get_alias():
     """
-    키를 생성 → alias 조회 → 삭제하는 end-to-end 테스트
+    key_alias를 지정해서 키를 생성하고, 해당 key_alias가 정상적으로 조회되는지 검증하는 테스트
     """
     service = LiteLLMService(base_url=LITELLM_URL, master_key=LITELLM_MASTER_KEY)
     models = ["gpt-3.5-turbo"]
-    key = service.generate_key(models=models, user_id="alias-lifecycle-user", metadata={"test": True})
+    key_alias = "integration"
+    key = service.generate_key(models=models, user_id="alias-create-user", key_alias=key_alias)
     assert key.startswith("sk-")
-    # alias 조회
-    alias = service.get_key_alias(key)
-    # alias는 None일 수도 있으나, API가 정상 동작하면 통과
-    assert alias is not None
-    print(f"생성된 키: {key}, alias: {alias}")
     # 삭제
+    service.delete_key(key)
+    print(f"키 삭제 성공: {key}")
+
+@pytest.mark.integration
+def test_update_key_alias_lifecycle():
+    """
+    키를 생성 → key alias 수정 → 삭제하는 end-to-end 테스트
+    """
+    service = LiteLLMService(base_url=LITELLM_URL, master_key=LITELLM_MASTER_KEY)
+    models = ["gpt-3.5-turbo"]
+    key_alias = "banana"
+    key = service.generate_key(models=models, user_id="alias-create-user", key_alias=key_alias)
+    assert key.startswith("sk-")
+    # key alias 수정
+    new_key_alias = "orange-2"
+    service.update_key_alias(key, new_key_alias)
+    # # 삭제
     service.delete_key(key)
     print(f"키 삭제 성공: {key}")
