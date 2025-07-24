@@ -36,10 +36,11 @@ mama는 사용자 정보에 맞게 LiteLLM Virtual Key를 손쉽게 관리할 �
    - 각 기능별 테스트 코드 작성 및 문서 보완
 
 ## TODO
+- LiteLLM 모듈이 현재 사용가능한 모델 조회하는 기능
+---
 - LiteLLM 모듈 - LiteLLM에 접근해서 Key를 생성하는 모듈 구현
 - LiteLLM 모듈이 키를 생성/삭제하는 기능
 - LiteLLM 모듈이 Key의 alias를 조회하는 기능
-- LiteLLM 모듈이 현재 사용가능한 모델 조회하는 기능
 - LiteLLM 모듈이 Key가 사용가능한 모델을 설정하는 기능
 - backend - LiteLLM에서 현재 사용가능한 모델 정보를 조회해서 제공하는 api
 - frontend - 현재 사용가능한 모델 정보를 불러와서 사용자 생성시에 선택해서 사용할 수 있게 함

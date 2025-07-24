@@ -55,3 +55,20 @@ class LiteLLMService:
         if not key:
             raise Exception(f"LiteLLM Key 응답에 key 없음: {data}")
         return key
+
+    def delete_key(self, key: str) -> None:
+        """
+        LiteLLM Key 삭제
+        :param key: 삭제할 key(str)
+        :raises: Exception (API 실패 시)
+        """
+        url = f"{self.base_url}/key/delete"
+        headers = {
+            "Authorization": f"Bearer {self.master_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"keys": [key]}  # LiteLLM은 'keys' 리스트를 요구함
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"LiteLLM Key 삭제 실패: {resp.status_code} {resp.text}")
+        # 성공 시 별도 반환값 없음

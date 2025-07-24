@@ -42,4 +42,26 @@ def test_generate_key_fail_invalid_master_key():
     models = ["gpt-3.5-turbo"]
     with pytest.raises(Exception) as excinfo:
         service.generate_key(models=models, user_id="fail-user")
-    assert "LiteLLM Key 생성 실패" in str(excinfo.value) 
+    assert "LiteLLM Key 생성 실패" in str(excinfo.value)
+
+@pytest.mark.integration
+def test_delete_key_success():
+    """
+    실제 LiteLLM Proxy가 실행 중이어야 하며, 환경변수에 LITELLM_URL, LITELLM_MASTER_KEY가 올바르게 세팅되어 있어야 합니다.
+    생성한 키를 삭제까지 검증합니다.
+    """
+    service = LiteLLMService(base_url=LITELLM_URL, master_key=LITELLM_MASTER_KEY)
+    models = ["gpt-3.5-turbo"]
+    key = service.generate_key(models=models, user_id="delete-test-user", metadata={"test": True})
+    assert key.startswith("sk-")
+    # 삭제 시도
+    service.delete_key(key)
+    print(f"키 삭제 성공: {key}")
+
+@pytest.mark.integration
+def test_delete_key_fail_invalid_master_key():
+    service = LiteLLMService(base_url=LITELLM_URL, master_key="sk-invalid")
+    with pytest.raises(Exception) as excinfo:
+        # 임의의 키 값 사용 (실제 존재하지 않아도 무방)
+        service.delete_key("sk-nonexistent-key")
+    assert "LiteLLM Key 삭제 실패" in str(excinfo.value)
