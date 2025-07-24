@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
 LITELLM_MASTER_KEY = os.getenv("LITELLM_MASTER_KEY", "sk-1234")
 
+
 class LiteLLMService:
     def __init__(self, base_url: Optional[str] = None, master_key: Optional[str] = None):
         self.base_url = base_url or LITELLM_URL
@@ -27,7 +28,13 @@ class LiteLLMService:
         data = resp.json()
         return data.get("data", [])
 
-    def generate_key(self, models: List[str], user_id: Optional[str] = None, metadata: Optional[dict] = None, key_alias: Optional[str] = None) -> str:
+    def generate_key(
+        self,
+        models: List[str],
+        user_id: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        key_alias: Optional[str] = None,
+    ) -> str:
         """
         LiteLLM Key 생성
         :param models: 허용할 모델 리스트 (예: ["gpt-3.5-turbo", "gpt-4"])

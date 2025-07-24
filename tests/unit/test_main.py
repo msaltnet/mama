@@ -13,6 +13,7 @@ from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 
 import re
+from unittest.mock import patch
 
 
 # 테스트용 데이터베이스 설정
@@ -121,13 +122,13 @@ class TestGetUserKey:
     """사용자 키 조회 API 테스트"""
     
     def test_get_user_key_success(self, test_user):
-        headers = {"Authorization": SERVER_API_KEY}
+        headers = {"x-api-key": SERVER_API_KEY}
         response = client.get(f"/key/{test_user.user_id}", headers=headers)
         assert response.status_code == 200
         assert response.json() == {"key": "sparrow-1234"}
     
     def test_get_user_key_not_found(self):
-        headers = {"Authorization": SERVER_API_KEY}
+        headers = {"x-api-key": SERVER_API_KEY}
         response = client.get("/key/nonexistent_user", headers=headers)
         assert response.status_code == 404
         assert response.json()["detail"] == "사용자를 찾을 수 없습니다."
@@ -259,7 +260,7 @@ class TestGetKeys:
         finally:
             db.close()
 
-        headers = {"Authorization": SERVER_API_KEY}
+        headers = {"x-api-key": SERVER_API_KEY}
         payload = {"user_ids": [test_user.user_id, "test_user2"]}
         response = client.post("/key/info", json=payload, headers=headers)
         assert response.status_code == 200
@@ -269,7 +270,7 @@ class TestGetKeys:
         assert len(result) == 2
 
     def test_get_keys_partial_found(self, test_user):
-        headers = {"Authorization": SERVER_API_KEY}
+        headers = {"x-api-key": SERVER_API_KEY}
         payload = {"user_ids": [test_user.user_id, "not_exist_user"]}
         response = client.post("/key/info", json=payload, headers=headers)
         assert response.status_code == 200
@@ -278,7 +279,7 @@ class TestGetKeys:
         assert len(result) == 1
 
     def test_get_keys_empty(self):
-        headers = {"Authorization": SERVER_API_KEY}
+        headers = {"x-api-key": SERVER_API_KEY}
         payload = {"user_ids": []}
         response = client.post("/key/info", json=payload, headers=headers)
         assert response.status_code == 200
@@ -289,3 +290,28 @@ class TestGetKeys:
         response = client.post("/key/info", json=payload)
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid or missing API key." 
+
+
+def test_get_litellm_models_success(admin_token):
+    mock_models = [
+        {"id": "gpt-3.5-turbo", "object": "model", "created": 123456, "owned_by": "openai"},
+        {"id": "gpt-4", "object": "model", "created": 123457, "owned_by": "openai"},
+    ]
+    with patch("app.litellm_service.LiteLLMService.get_models", return_value=mock_models):
+        response = client.get("/models", headers={"Authorization": f"Bearer {admin_token}"})
+        assert response.status_code == 200
+        assert response.json() == {"models": mock_models}
+
+
+def test_get_litellm_models_fail(admin_token):
+    with patch("app.litellm_service.LiteLLMService.get_models", side_effect=Exception("LiteLLM 연결 오류")):
+        response = client.get("/models", headers={"Authorization": f"Bearer {admin_token}"})
+        assert response.status_code == 500
+        assert response.json()["detail"] == "LiteLLM 연결 오류"
+
+
+def test_get_litellm_models_unauthorized():
+    # 토큰 없이 요청 시 401
+    with patch("app.litellm_service.LiteLLMService.get_models", return_value=[]):
+        response = client.get("/models")
+        assert response.status_code == 401 

@@ -23,6 +23,8 @@ from .schemas import (
     KeyResponse,
 )
 import random
+from .litellm_service import LiteLLMService
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI):
     yield
     # shutdown 단계 (필요하면 여기에 종료 처리 추가)
 
+
 app = FastAPI()
 
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
@@ -38,6 +41,7 @@ app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="
 
 engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 # DB 세션 의존성 함수
 def init_db():
@@ -133,6 +137,7 @@ def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(g
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     finally:
         db.close()
+
 
 @app.post("/create-admin")
 def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required)):
@@ -286,3 +291,17 @@ def get_keys(
     users = db.query(User).filter(User.user_id.in_(req.user_ids)).all()
     result = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
     return result
+
+
+@app.get("/models")
+def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
+    """
+    LiteLLM에서 사용 가능한 모델 리스트를 반환하는 API
+    관리자 인증 필요
+    """
+    service = LiteLLMService()
+    try:
+        models = service.get_models()
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
