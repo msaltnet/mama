@@ -96,3 +96,23 @@ def test_update_key_alias_lifecycle():
     # # 삭제
     service.delete_key(key)
     print(f"키 삭제 성공: {key}")
+
+@pytest.mark.integration
+def test_update_key_models_lifecycle():
+    """
+    키를 생성 → 모델 리스트를 수정 → 모델 리스트를 조회하여 반영 여부를 검증 → 삭제하는 end-to-end 테스트
+    """
+    service = LiteLLMService(base_url=LITELLM_URL, master_key=LITELLM_MASTER_KEY)
+    models = ["gpt-3.5-turbo"]
+    key = service.generate_key(models=models, user_id="model-update-user")
+    assert key.startswith("sk-")
+    # 모델 리스트 수정
+    new_models = ["gpt-4", "gpt-3.5-turbo"]
+    service.update_key_models(key, new_models)
+    # 모델 리스트 조회
+    fetched_models = service.get_key_models(key)
+    assert set(fetched_models) == set(new_models)
+    print(f"수정된 모델 리스트: {fetched_models}")
+    # 삭제
+    service.delete_key(key)
+    print(f"키 삭제 성공: {key}")

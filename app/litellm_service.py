@@ -93,3 +93,39 @@ class LiteLLMService:
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key alias 수정 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
+
+    def update_key_models(self, key: str, models: list) -> None:
+        """
+        LiteLLM Key의 사용 가능 모델 리스트(models) 수정
+        :param key: 수정할 key(str)
+        :param models: 변경할 모델 리스트(list)
+        :raises: Exception (API 실패 시)
+        """
+        url = f"{self.base_url}/key/update"
+        headers = {
+            "Authorization": f"Bearer {self.master_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"key": key, "models": models}
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"LiteLLM Key 모델 수정 실패: {resp.status_code} {resp.text}")
+        # 성공 시 별도 반환값 없음
+
+    def get_key_models(self, key: str) -> Optional[list]:
+        """
+        LiteLLM Key로 사용 가능한 모델 리스트 조회
+        :param key: 조회할 key(str)
+        :return: models(list) 또는 None
+        :raises: Exception (API 실패 시)
+        """
+        url = f"{self.base_url}/key/info?key={key}"
+        headers = {
+            "Authorization": f"Bearer {self.master_key}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"LiteLLM Key 모델 조회 실패: {resp.status_code} {resp.text}")
+        data = resp.json()
+        return data.get("info", {}).get("models")
