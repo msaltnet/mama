@@ -1,5 +1,6 @@
 import bcrypt
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 

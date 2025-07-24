@@ -1,5 +1,5 @@
 import os
-import requests
+import httpx
 from typing import List, Optional, Dict, Any
 
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
@@ -11,7 +11,7 @@ class LiteLLMService:
         self.base_url = base_url or LITELLM_URL
         self.master_key = master_key or LITELLM_MASTER_KEY
 
-    def get_models(self) -> List[Dict[str, Any]]:
+    async def get_models(self) -> List[Dict[str, Any]]:
         """
         LiteLLM에서 사용 가능한 모델 리스트를 가져옵니다.
         :return: 모델 정보 리스트
@@ -22,13 +22,14 @@ class LiteLLMService:
             "Authorization": f"Bearer {self.master_key}",
             "Content-Type": "application/json",
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM 모델 리스트 조회 실패: {resp.status_code} {resp.text}")
         data = resp.json()
         return data.get("data", [])
 
-    def generate_key(
+    async def generate_key(
         self,
         models: List[str],
         user_id: Optional[str] = None,
@@ -56,17 +57,17 @@ class LiteLLMService:
             payload["metadata"] = metadata
         if key_alias:
             payload["key_alias"] = key_alias
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers, json=payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 생성 실패: {resp.status_code} {resp.text}")
         data = resp.json()
-        # 실제 반환 구조에 따라 key 추출
         key = data.get("key") or data.get("token")
         if not key:
             raise Exception(f"LiteLLM Key 응답에 key 없음: {data}")
         return key
 
-    def delete_key(self, key: str) -> None:
+    async def delete_key(self, key: str) -> None:
         """
         LiteLLM Key 삭제
         :param key: 삭제할 key(str)
@@ -78,12 +79,13 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"keys": [key]}  # LiteLLM은 'keys' 리스트를 요구함
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers, json=payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 삭제 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
 
-    def update_key_alias(self, key: str, key_alias: str) -> None:
+    async def update_key_alias(self, key: str, key_alias: str) -> None:
         """
         LiteLLM Key의 key alias(별칭) 수정
         :param key: 수정할 key(str)
@@ -96,12 +98,13 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"key": key, "key_alias": key_alias}
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers, json=payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key alias 수정 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
 
-    def update_key_models(self, key: str, models: list) -> None:
+    async def update_key_models(self, key: str, models: list) -> None:
         """
         LiteLLM Key의 사용 가능 모델 리스트(models) 수정
         :param key: 수정할 key(str)
@@ -114,12 +117,13 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"key": key, "models": models}
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers, json=payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 모델 수정 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
 
-    def get_key_models(self, key: str) -> Optional[list]:
+    async def get_key_models(self, key: str) -> Optional[list]:
         """
         LiteLLM Key로 사용 가능한 모델 리스트 조회
         :param key: 조회할 key(str)
@@ -131,7 +135,8 @@ class LiteLLMService:
             "Authorization": f"Bearer {self.master_key}",
             "Content-Type": "application/json",
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 모델 조회 실패: {resp.status_code} {resp.text}")
         data = resp.json()

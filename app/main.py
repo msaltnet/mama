@@ -9,8 +9,9 @@ from fastapi import Depends, FastAPI, HTTPException, status, Body, Header
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY
 from .models import Admin, Base, User
@@ -39,37 +40,15 @@ app = FastAPI()
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
 app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="static")
 
-engine = create_engine(DB_URL, echo=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+ASYNC_DB_URL = DB_URL.replace('postgresql+psycopg2', 'postgresql+asyncpg')
+engine = create_async_engine(ASYNC_DB_URL, echo=True)
+SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=AsyncSession)
 
 
 # DB 세션 의존성 함수
-def init_db():
-    # 슈퍼 관리자(admin/admin) 자동 생성
-    session = Session(bind=engine)
-    try:
-        super_admin = session.query(Admin).filter_by(is_super_admin=True).first()
-        if not super_admin:
-            admin = Admin(username="mama", is_super_admin=True)
-            admin.set_password("mama")
-            session.add(admin)
-            session.commit()
-            print("[INFO] 슈퍼 관리자(mama/mama) 계정이 생성되었습니다.")
-        else:
-            print("[INFO] 슈퍼 관리자 계정이 이미 존재합니다.")
-    finally:
-        session.close()
-
-
-init_db()
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    async with SessionLocal() as session:
+        yield session
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -86,7 +65,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 
-def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_admin(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -99,7 +78,8 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
-    admin = db.query(Admin).filter(Admin.username == username).first()
+    result = await db.execute(select(Admin).where(Admin.username == username))
+    admin = result.scalars().first()
     if admin is None:
         raise credentials_exception
     return admin
@@ -112,9 +92,10 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 
 
 @app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     try:
-        admin = db.query(Admin).filter(Admin.username == form_data.username).first()
+        result = await db.execute(select(Admin).where(Admin.username == form_data.username))
+        admin = result.scalars().first()
         if not admin or not admin.verify_password(form_data.password):
             raise HTTPException(status_code=400, detail="Incorrect username or password")
         access_token = create_access_token(
@@ -122,40 +103,34 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
         return {"access_token": access_token, "token_type": "bearer"}
     finally:
-        db.close()
+        pass
 
 
 @app.post("/change-password")
-def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(get_current_admin)):
-    db = next(get_db())
-    try:
-        admin = db.query(Admin).filter(Admin.id == current_admin.id).first()
-        if not admin or not admin.verify_password(req.old_password):
-            raise HTTPException(status_code=400, detail="Current password does not match.")
-        admin.set_password(req.new_password)
-        db.commit()
-        return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
-    finally:
-        db.close()
+async def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Admin).where(Admin.id == current_admin.id))
+    admin = result.scalars().first()
+    if not admin or not admin.verify_password(req.old_password):
+        raise HTTPException(status_code=400, detail="Current password does not match.")
+    admin.set_password(req.new_password)
+    await db.commit()
+    return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
 
 
 @app.post("/create-admin")
-def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required)):
-    db = next(get_db())
-    try:
-        if db.query(Admin).filter(Admin.username == req.username).first():
-            raise HTTPException(status_code=400, detail="Admin username already exists.")
-        new_admin = Admin(username=req.username, is_super_admin=False)
-        new_admin.set_password(req.password)
-        db.add(new_admin)
-        db.commit()
-        return {"msg": f"관리자 계정({req.username})이 성공적으로 생성되었습니다."}
-    finally:
-        db.close()
+async def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Admin).where(Admin.username == req.username))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="Admin username already exists.")
+    new_admin = Admin(username=req.username, is_super_admin=False)
+    new_admin.set_password(req.password)
+    db.add(new_admin)
+    await db.commit()
+    return {"msg": f"관리자 계정({req.username})이 성공적으로 생성되었습니다."}
 
 
 @app.get("/", response_class=HTMLResponse)
-def serve_spa():
+async def serve_spa():
     """Serve React SPA"""
     try:
         with open("frontend/dist/index.html", "r", encoding="utf-8") as f:
@@ -165,7 +140,7 @@ def serve_spa():
 
 
 @app.get("/health")
-def health_check():
+async def health_check():
     return {"status": "ok"}
 
 
@@ -201,19 +176,19 @@ def get_random_bird_key():
 
 
 @app.get("/users", response_model=List[UserRead])
-def list_users(
+async def list_users(
     organization: Optional[str] = None,
     current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    query = db.query(User)
+    stmt = select(User)
     if organization:
-        query = query.filter(User.organization == organization)
-    users = query.all()
-    # allowed_models, allowed_services 정보 포함
-    result = []
+        stmt = stmt.where(User.organization == organization)
+    result = await db.execute(stmt)
+    users = result.scalars().all()
+    out = []
     for user in users:
-        result.append(
+        out.append(
             {
                 "id": user.id,
                 "user_id": user.user_id,
@@ -226,17 +201,17 @@ def list_users(
                 "allowed_services": [s.service_name for s in user.allowed_services],
             }
         )
-    return result
+    return out
 
 
 @app.post("/users", response_model=UserRead)
-def create_user(
+async def create_user(
     req: UserCreateRequest,
     current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    # user_id 중복 체크
-    if db.query(User).filter(User.user_id == req.user_id).first():
+    result = await db.execute(select(User).where(User.user_id == req.user_id))
+    if result.scalars().first():
         raise HTTPException(status_code=400, detail="이미 존재하는 사용자 ID입니다.")
     key_value = get_random_bird_key()
     user = User(
@@ -246,9 +221,8 @@ def create_user(
         extra_info=req.extra_info,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
-    # allowed_models, allowed_services는 빈 리스트로 반환
+    await db.commit()
+    await db.refresh(user)
     return {
         "id": user.id,
         "user_id": user.user_id,
@@ -269,39 +243,42 @@ def verify_server_api_key(x_api_key: str = Header(None)):
 
 
 @app.get("/key/{user_id}")
-def get_user_key(
+async def get_user_key(
     user_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     x_api_key: str = Header(None),
 ):
     verify_server_api_key(x_api_key)
-    user = db.query(User).filter(User.user_id == user_id).first()
+    result = await db.execute(select(User).where(User.user_id == user_id))
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     return {"key": user.key_value}
 
 
 @app.post("/key/info", response_model=list[KeyResponse])
-def get_keys(
+async def get_keys(
     req: KeyRequest = Body(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     x_api_key: str = Header(None),
 ):
     verify_server_api_key(x_api_key)
-    users = db.query(User).filter(User.user_id.in_(req.user_ids)).all()
-    result = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
-    return result
+    stmt = select(User).where(User.user_id.in_(req.user_ids))
+    result = await db.execute(stmt)
+    users = result.scalars().all()
+    out = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
+    return out
 
 
 @app.get("/models")
-def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
+async def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
     """
     LiteLLM에서 사용 가능한 모델 리스트를 반환하는 API
     관리자 인증 필요
     """
     service = LiteLLMService()
     try:
-        models = service.get_models()
+        models = await service.get_models()
         return {"models": models}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

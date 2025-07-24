@@ -13,3 +13,8 @@ black
 pytest
 httpx
 requests
+sqlalchemy[asyncio]
+asyncpg
+pytest_asyncio
+aiosqlite
+asgi_lifespan
