@@ -21,21 +21,14 @@ import {
   Chip,
   Divider,
   TableSortLabel,
+  InputAdornment,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import SearchIcon from "@mui/icons-material/Search";
 import { DEBUG } from "../config";
 import { fetchJson } from "../utils/api";
-
-interface User {
-  user_id: string;
-  organization?: string;
-  key_value: string;
-  extra_info?: string;
-  created_at?: string;
-  updated_at?: string;
-  allowed_models: string[];
-  allowed_services: string[];
-}
+import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
+import type { User } from "../types/user";
 
 interface AvailableModel {
   id: string;
@@ -79,34 +72,10 @@ const MainPage: React.FC = () => {
     direction: 'asc'
   });
 
-  // 조류 이름 배열 추가
-  const BIRD_NAMES = [
-    "sparrow",
-    "eagle",
-    "owl",
-    "parrot",
-    "falcon",
-    "heron",
-    "crane",
-    "duck",
-    "swan",
-    "magpie",
-    "woodpecker",
-    "kingfisher",
-    "pigeon",
-    "dove",
-    "wren",
-    "robin",
-    "finch",
-    "tit",
-    "jay",
-    "lark",
-  ];
-  function getRandomBirdKey() {
-    const bird = BIRD_NAMES[Math.floor(Math.random() * BIRD_NAMES.length)];
-    const num = Math.floor(1000 + Math.random() * 9000);
-    return `${bird}-${num}`;
-  }
+  // 검색 관련 상태
+  const [searchTerm, setSearchTerm] = useState("");
+
+
 
   // 사용 가능한 모델 정보를 불러오는 함수
   const fetchAvailableModels = async () => {
@@ -192,88 +161,41 @@ const MainPage: React.FC = () => {
   }, [selectedModels]);
 
   useEffect(() => {
-    if (DEBUG) {
-      // 더미 데이터
-      setUsers([
-        {
-          user_id: "testuser1",
-          organization: "dev-org",
-          key_value: "key-123",
-          extra_info: "테스트 계정",
-          created_at: "2024-01-01T12:00:00",
-          updated_at: "2024-01-02T12:00:00",
-          allowed_models: ["gpt-3.5-turbo", "gpt-4", "gpt-4-invalid"],
-          allowed_services: ["chat", "file-upload"],
-        },
-        {
-          user_id: "testuser2",
-          organization: "dev-org",
-          key_value: "key-456",
-          extra_info: undefined,
-          created_at: "2024-01-03T12:00:00",
-          updated_at: "2024-01-04T12:00:00",
-          allowed_models: ["gpt-3.5-turbo"],
-          allowed_services: ["chat"],
-        },
-        {
-          user_id: "testuser3",
-          organization: "admin-org",
-          key_value: "key-789",
-          extra_info: "모든 모델 접근 권한",
-          created_at: "2024-01-05T12:00:00",
-          updated_at: "2024-01-05T12:00:00",
-          allowed_models: ["all-team-models"],
-          allowed_services: ["chat", "file-upload", "embeddings"],
-        },
-      ]);
-      setError("");
-      setLoading(false);
-      // DEBUG 모드에서는 더미 모델 데이터도 함께 설정
-      setAvailableModels([
-        {
-          id: "gpt-3.5-turbo",
-          object: "model",
-          created: 123456,
-          owned_by: "openai",
-        },
-        { id: "gpt-4", object: "model", created: 123457, owned_by: "openai" },
-        {
-          id: "tinyllama1",
-          object: "model",
-          created: 123458,
-          owned_by: "ollama",
-        },
-        {
-          id: "tinyllama2",
-          object: "model",
-          created: 123459,
-          owned_by: "ollama",
-        },
-        {
-          id: "tinyllama3",
-          object: "model",
-          created: 123460,
-          owned_by: "ollama",
-        },
-      ]);
-      return;
-    }
     setLoading(true);
 
     // 사용자 목록과 모델 목록을 동시에 가져오기
     const fetchData = async () => {
       try {
-        // 사용자 목록과 모델 목록을 병렬로 가져옴
-        const [usersData, modelsData] = await Promise.all([
-          fetchJson<User[]>("/users"),
-          fetchJson<{ models: AvailableModel[] }>("/models").catch(() => ({
-            models: [],
-          })),
-        ]);
+        if (DEBUG) {
+          // DEBUG 모드에서는 mock 데이터 사용
+          const mockUsers = generateMockUsers();
+          setUsers(mockUsers);
+          setAvailableModels([
+            { id: "gpt-4", object: "model", created: 1640995200, owned_by: "openai" },
+            { id: "gpt-3.5-turbo", object: "model", created: 1640995200, owned_by: "openai" },
+            { id: "claude-3-opus", object: "model", created: 1640995200, owned_by: "anthropic" },
+            { id: "claude-3-sonnet", object: "model", created: 1640995200, owned_by: "anthropic" },
+            { id: "claude-3-haiku", object: "model", created: 1640995200, owned_by: "anthropic" },
+            { id: "gemini-pro", object: "model", created: 1640995200, owned_by: "google" },
+            { id: "llama-2-70b", object: "model", created: 1640995200, owned_by: "meta" },
+            { id: "llama-2-13b", object: "model", created: 1640995200, owned_by: "meta" },
+            { id: "llama-2-7b", object: "model", created: 1640995200, owned_by: "meta" },
+            { id: "mistral-7b", object: "model", created: 1640995200, owned_by: "mistral" },
+          ]);
+          setError("");
+        } else {
+          // 실제 API 호출
+          const [usersData, modelsData] = await Promise.all([
+            fetchJson<User[]>("/users"),
+            fetchJson<{ models: AvailableModel[] }>("/models").catch(() => ({
+              models: [],
+            })),
+          ]);
 
-        setUsers(usersData);
-        setAvailableModels(modelsData.models || []);
-        setError("");
+          setUsers(usersData);
+          setAvailableModels(modelsData.models || []);
+          setError("");
+        }
       } catch (err: unknown) {
         if (err instanceof Error) {
           setError(err.message);
@@ -288,12 +210,6 @@ const MainPage: React.FC = () => {
     fetchData();
   }, [token, username]);
 
-  // 사용자 목록을 불러온 후 사용 가능한 모델 정보도 함께 불러옴 (이 부분 제거)
-  // useEffect(() => {
-  //   if (users.length > 0 && !DEBUG) {
-  //     fetchAvailableModels();
-  //   }
-  // }, [users]);
 
   // 모델이 사용 가능한지 확인하는 함수
   const isModelAvailable = (modelId: string) => {
@@ -380,9 +296,21 @@ const MainPage: React.FC = () => {
     }));
   };
 
-  // 정렬된 사용자 목록 생성
-  const sortedUsers = React.useMemo(() => {
-    const sorted = [...users].sort((a, b) => {
+  // 검색 및 정렬된 사용자 목록 생성
+  const filteredAndSortedUsers = React.useMemo(() => {
+    // 검색 필터링
+    const filtered = users.filter((user) => {
+      if (!searchTerm.trim()) return true;
+
+      const searchLower = searchTerm.toLowerCase();
+      const userId = user.user_id?.toLowerCase() || '';
+      const organization = user.organization?.toLowerCase() || '';
+
+      return userId.includes(searchLower) || organization.includes(searchLower);
+    });
+
+    // 정렬
+    const sorted = filtered.sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 
@@ -414,18 +342,9 @@ const MainPage: React.FC = () => {
     });
 
     return sorted;
-  }, [users, sortConfig]);
+  }, [users, searchTerm, sortConfig]);
   const createMockUsers = (): User[] => {
-    return userIds.map((userId) => ({
-      user_id: userId,
-      organization: form.organization,
-      key_value: getRandomBirdKey(),
-      extra_info: form.extra_info,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      allowed_models: selectedModels,
-      allowed_services: [],
-    }));
+    return generateMockUsersFromIds(userIds, form.organization, form.extra_info, selectedModels);
   };
 
   const createUserRequests = () => {
@@ -500,6 +419,25 @@ const MainPage: React.FC = () => {
           >
             Create User
           </Button>
+        </Box>
+
+        {/* 검색 필드 */}
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="사용자 ID 또는 조직명으로 검색..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ maxWidth: 400 }}
+          />
         </Box>
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
@@ -587,14 +525,14 @@ const MainPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sortedUsers.length === 0 ? (
+                {filteredAndSortedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
-                      No user information available.
+                      {searchTerm.trim() ? "검색 결과가 없습니다." : "No user information available."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedUsers.map((user) => (
+                  filteredAndSortedUsers.map((user) => (
                     <TableRow key={user.user_id}>
                       <TableCell>{user.user_id}</TableCell>
                       <TableCell>{user.organization || "-"}</TableCell>
