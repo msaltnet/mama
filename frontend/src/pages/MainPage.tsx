@@ -18,6 +18,8 @@ import {
   DialogActions,
   TextField,
   Stack,
+  Chip,
+  Divider,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { DEBUG } from "../config";
@@ -31,6 +33,13 @@ interface User {
   updated_at?: string;
   allowed_models: string[];
   allowed_services: string[];
+}
+
+interface AvailableModel {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
 }
 
 const MainPage: React.FC = () => {
@@ -48,6 +57,11 @@ const MainPage: React.FC = () => {
   });
   const [formError, setFormError] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // 사용 가능한 모델 관련 상태
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
 
   // 조류 이름 배열 추가
   const BIRD_NAMES = [
@@ -78,6 +92,61 @@ const MainPage: React.FC = () => {
     return `${bird}-${num}`;
   }
 
+  // 사용 가능한 모델 정보를 불러오는 함수
+  const fetchAvailableModels = async () => {
+    if (DEBUG) {
+      // DEBUG 모드에서는 더미 데이터 사용
+      setAvailableModels([
+        { id: "gpt-3.5-turbo", object: "model", created: 123456, owned_by: "openai" },
+        { id: "gpt-4", object: "model", created: 123457, owned_by: "openai" },
+        { id: "tinyllama1", object: "model", created: 123458, owned_by: "ollama" },
+        { id: "tinyllama2", object: "model", created: 123459, owned_by: "ollama" },
+        { id: "tinyllama3", object: "model", created: 123460, owned_by: "ollama" },
+      ]);
+      return;
+    }
+
+    setLoadingModels(true);
+    try {
+      const response = await fetch("/models", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch available models");
+      }
+
+      const data = await response.json();
+      setAvailableModels(data.models || []);
+    } catch (err) {
+      console.error("Failed to fetch models:", err);
+      setAvailableModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  // 모델 선택 상태 변경 핸들러
+  const handleModelSelectionChange = (modelId: string) => {
+    setSelectedModels(prev => {
+      if (prev.includes(modelId)) {
+        return prev.filter(id => id !== modelId);
+      } else {
+        return [...prev, modelId];
+      }
+    });
+  };
+
+  // 선택된 모델들을 문자열로 변환
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      allowed_models: selectedModels.join(", ")
+    }));
+  }, [selectedModels]);
+
   useEffect(() => {
     if (!username) return;
     if (DEBUG) {
@@ -90,7 +159,7 @@ const MainPage: React.FC = () => {
           extra_info: "테스트 계정",
           created_at: "2024-01-01T12:00:00",
           updated_at: "2024-01-02T12:00:00",
-          allowed_models: ["gpt-3.5-turbo", "gpt-4"],
+          allowed_models: ["gpt-3.5-turbo", "gpt-4", "gpt-4-invalid"],
           allowed_services: ["chat", "file-upload"],
         },
         {
@@ -106,39 +175,112 @@ const MainPage: React.FC = () => {
       ]);
       setError("");
       setLoading(false);
+      // DEBUG 모드에서는 더미 모델 데이터도 함께 설정
+      setAvailableModels([
+        { id: "gpt-3.5-turbo", object: "model", created: 123456, owned_by: "openai" },
+        { id: "gpt-4", object: "model", created: 123457, owned_by: "openai" },
+        { id: "tinyllama1", object: "model", created: 123458, owned_by: "ollama" },
+        { id: "tinyllama2", object: "model", created: 123459, owned_by: "ollama" },
+        { id: "tinyllama3", object: "model", created: 123460, owned_by: "ollama" },
+      ]);
       return;
     }
     setLoading(true);
-    fetch("/users", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        const text = await res.text();
+
+    // 사용자 목록과 모델 목록을 동시에 가져오기
+    const fetchData = async () => {
+      try {
+        // 사용자 목록과 모델 목록을 병렬로 가져옴
+        const [usersResponse, modelsResponse] = await Promise.all([
+          fetch("/users", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          fetch("/models", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+        ]);
+
+        // 사용자 목록 처리
+        const usersText = await usersResponse.text();
+        let usersData;
         try {
-          const data = JSON.parse(text);
-          if (!res.ok) {
-            throw new Error(data.detail || "Failed to fetch user information.");
+          usersData = JSON.parse(usersText);
+          if (!usersResponse.ok) {
+            throw new Error(usersData.detail || "Failed to fetch user information.");
           }
-          return data;
         } catch {
-          throw new Error("API did not return JSON: " + text.slice(0, 100));
+          throw new Error("Users API did not return JSON: " + usersText.slice(0, 100));
         }
-      })
-      .then((data) => {
-        setUsers(data);
+
+        // 모델 목록 처리
+        let modelsData = [];
+        if (modelsResponse.ok) {
+          const modelsText = await modelsResponse.text();
+          try {
+            const parsedModels = JSON.parse(modelsText);
+            modelsData = parsedModels.models || [];
+          } catch {
+            console.warn("Models API did not return valid JSON");
+          }
+        }
+
+        setUsers(usersData);
+        setAvailableModels(modelsData);
         setError("");
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (err instanceof Error) {
           setError(err.message);
         } else {
           setError(String(err));
         }
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [token, username]);
+
+  // 사용자 목록을 불러온 후 사용 가능한 모델 정보도 함께 불러옴 (이 부분 제거)
+  // useEffect(() => {
+  //   if (users.length > 0 && !DEBUG) {
+  //     fetchAvailableModels();
+  //   }
+  // }, [users]);
+
+  // 모델이 사용 가능한지 확인하는 함수
+  const isModelAvailable = (modelId: string) => {
+    return availableModels.some(model => model.id === modelId);
+  };
+
+  // 모델 칩을 렌더링하는 함수
+  const renderModelChips = (models: string[]) => {
+    if (!models || models.length === 0) {
+      return "-";
+    }
+
+    return (
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        {models.map((model) => (
+          <Chip
+            key={model}
+            label={model}
+            size="small"
+            color={isModelAvailable(model) ? "primary" : "error"}
+            variant={isModelAvailable(model) ? "filled" : "filled"}
+            sx={{
+              fontSize: "0.75rem",
+              height: "20px",
+            }}
+          />
+        ))}
+      </Box>
+    );
+  };
 
   const handleDialogOpen = () => {
     setForm({
@@ -147,8 +289,11 @@ const MainPage: React.FC = () => {
       allowed_models: "",
       extra_info: "",
     });
+    setSelectedModels([]);
     setFormError("");
     setDialogOpen(true);
+    // 다이얼로그가 열릴 때 사용 가능한 모델 정보를 불러옴
+    fetchAvailableModels();
   };
   const handleDialogClose = () => {
     setDialogOpen(false);
@@ -157,8 +302,8 @@ const MainPage: React.FC = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
   const handleCreateUser = async () => {
-    if (!form.user_id || !form.allowed_models) {
-      setFormError("User ID and Allowed Models are required.");
+    if (!form.user_id || selectedModels.length === 0) {
+      setFormError("User ID and at least one model selection are required.");
       return;
     }
     setCreating(true);
@@ -174,7 +319,7 @@ const MainPage: React.FC = () => {
             extra_info: form.extra_info,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            allowed_models: form.allowed_models.split(",").map((s) => s.trim()),
+            allowed_models: selectedModels,
             allowed_services: [],
           },
         ]);
@@ -189,7 +334,10 @@ const MainPage: React.FC = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          allowed_models: selectedModels.join(", ")
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -234,9 +382,19 @@ const MainPage: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        px: 2, // 좌우 패딩 추가
       }}
     >
-      <Paper elevation={3} sx={{ p: 4, minWidth: 1100, width: "100%" }}>
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4, // 패딩 추가
+          minWidth: 1100,
+          width: "100%",
+          maxWidth: 1400, // 최대 폭 설정
+          mx: "auto", // 중앙 정렬
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <Typography variant="h5" gutterBottom sx={{ flexGrow: 1 }}>
             User List
@@ -286,13 +444,11 @@ const MainPage: React.FC = () => {
                       <TableCell>{user.key_value}</TableCell>
                       <TableCell>{user.extra_info || "-"}</TableCell>
                       <TableCell>
-                        {user.allowed_models && user.allowed_models.length > 0
-                          ? user.allowed_models.join(", ")
-                          : "-"}
+                        {renderModelChips(user.allowed_models)}
                       </TableCell>
                       <TableCell>
                         {user.allowed_services &&
-                        user.allowed_services.length > 0
+                          user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
@@ -312,12 +468,12 @@ const MainPage: React.FC = () => {
         <Dialog
           open={dialogOpen}
           onClose={handleDialogClose}
-          maxWidth="sm"
+          maxWidth="md"
           fullWidth
         >
           <DialogTitle>Create User</DialogTitle>
           <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
+            <Stack spacing={3} sx={{ mt: 1 }}>
               <TextField
                 label="User ID"
                 name="user_id"
@@ -333,21 +489,65 @@ const MainPage: React.FC = () => {
                 onChange={handleFormChange}
                 fullWidth
               />
-              <TextField
-                label="Allowed Models"
-                name="allowed_models"
-                value={form.allowed_models}
-                onChange={handleFormChange}
-                required
-                fullWidth
-                helperText="Enter model names separated by commas (e.g. gpt-3.5-turbo, gpt-4)"
-              />
+
+              <Divider />
+
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Available Models
+                </Typography>
+                {loadingModels ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : availableModels.length === 0 ? (
+                  <Alert severity="warning">
+                    No available models found. Please check your LiteLLM configuration.
+                  </Alert>
+                ) : (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {availableModels.map((model) => (
+                      <Chip
+                        key={model.id}
+                        label={model.id}
+                        size="small"
+                        color={selectedModels.includes(model.id) ? "primary" : "default"}
+                        variant={selectedModels.includes(model.id) ? "filled" : "outlined"}
+                        onClick={() => handleModelSelectionChange(model.id)}
+                        sx={{ cursor: "pointer" }}
+                      />
+                    ))}
+                  </Box>
+                )}
+
+                {selectedModels.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Selected Models:
+                    </Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                      {selectedModels.map((modelId) => (
+                        <Chip
+                          key={modelId}
+                          label={modelId}
+                          color="primary"
+                          size="small"
+                          onDelete={() => handleModelSelectionChange(modelId)}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
               <TextField
                 label="Extra Info"
                 name="extra_info"
                 value={form.extra_info}
                 onChange={handleFormChange}
                 fullWidth
+                multiline
+                rows={2}
               />
               {formError && <Alert severity="error">{formError}</Alert>}
             </Stack>
@@ -359,7 +559,7 @@ const MainPage: React.FC = () => {
             <Button
               onClick={handleCreateUser}
               variant="contained"
-              disabled={creating}
+              disabled={creating || selectedModels.length === 0}
             >
               {creating ? "Creating..." : "Create"}
             </Button>

@@ -29,46 +29,53 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <>
       <AppBar position="static" color="primary" elevation={1} sx={{ mb: 4 }}>
-        <Toolbar>
-          <Typography
-            variant="h6"
-            sx={{ flexGrow: 1, cursor: "pointer" }}
-            onClick={() => navigate("/")}
-          >
-            mama
-          </Typography>
-          {username ? (
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Typography variant="body1" sx={{ ml: 2 }}>
-                {username}
-              </Typography>
-              <Tooltip title="Account Settings">
-                <IconButton
-                  color="inherit"
-                  sx={{ ml: 1 }}
-                  onClick={handleSettings}
-                >
-                  <SettingsIcon />
+        <Box sx={{
+          maxWidth: 1400,
+          mx: "auto",
+          width: "100%",
+          px: 2, // 좌우 패딩 추가
+        }}>
+          <Toolbar sx={{ px: 0 }}> {/* Toolbar의 기본 패딩 제거 */}
+            <Typography
+              variant="h6"
+              sx={{ flexGrow: 1, cursor: "pointer" }}
+              onClick={() => navigate("/")}
+            >
+              mama
+            </Typography>
+            {username ? (
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Typography variant="body1" sx={{ ml: 2 }}>
+                  {username}
+                </Typography>
+                <Tooltip title="Account Settings">
+                  <IconButton
+                    color="inherit"
+                    sx={{ ml: 1 }}
+                    onClick={handleSettings}
+                  >
+                    <SettingsIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Logout">
+                  <IconButton
+                    color="inherit"
+                    sx={{ ml: 1 }}
+                    onClick={handleLogout}
+                  >
+                    <LogoutIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            ) : (
+              <Tooltip title="Login">
+                <IconButton color="inherit" onClick={() => navigate("/login")}>
+                  <LoginIcon />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Logout">
-                <IconButton
-                  color="inherit"
-                  sx={{ ml: 1 }}
-                  onClick={handleLogout}
-                >
-                  <LogoutIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          ) : (
-            <Tooltip title="Login">
-              <IconButton color="inherit" onClick={() => navigate("/login")}>
-                <LoginIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Toolbar>
+            )}
+          </Toolbar>
+        </Box>
       </AppBar>
       {children}
     </>

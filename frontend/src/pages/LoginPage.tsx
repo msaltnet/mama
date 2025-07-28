@@ -68,9 +68,19 @@ const LoginPage: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        px: 2, // 좌우 패딩 추가
       }}
     >
-      <Paper elevation={3} sx={{ p: 4, minWidth: 320 }}>
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          minWidth: 320,
+          maxWidth: 400, // 로그인 폼은 더 작게
+          width: "100%",
+          mx: "auto", // 중앙 정렬
+        }}
+      >
         <Typography variant="h6" align="center" gutterBottom>
           Admin Login
         </Typography>
