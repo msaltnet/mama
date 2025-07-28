@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Box, TextField, Button, Typography, Paper } from "@mui/material";
+import { fetchJson } from "../utils/api";
 
 const ChangePasswordPage: React.FC = () => {
   const [oldPassword, setOldPassword] = useState("");
@@ -9,33 +10,17 @@ const ChangePasswordPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem("access_token");
-      if (!token) throw new Error("Login required.");
-      const response = await fetch("/change-password", {
+      await fetchJson("/change-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           old_password: oldPassword,
           new_password: newPassword,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        let errorMsg = "Password change failed.";
-        if (response.status === 401) {
-          errorMsg = "Invalid authentication.";
-        } else if (response.status === 403) {
-          errorMsg = "You do not have permission to access.";
-        } else if (response.status === 400) {
-          errorMsg = data.detail || "Bad request.";
-        } else if (data && data.detail) {
-          errorMsg = data.detail;
-        }
-        throw new Error(errorMsg);
-      }
+
       alert("Password changed successfully.");
       setOldPassword("");
       setNewPassword("");

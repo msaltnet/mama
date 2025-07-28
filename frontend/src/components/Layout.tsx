@@ -15,6 +15,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
+  const token = localStorage.getItem("access_token");
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -24,6 +25,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const handleSettings = () => {
     navigate("/account");
+  };
+
+  const handleLogin = () => {
+    navigate("/login");
+  };
+
+  const handleHome = () => {
+    if (token) {
+      navigate("/");
+    } else {
+      navigate("/login");
+    }
   };
 
   return (
@@ -39,11 +52,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Typography
               variant="h6"
               sx={{ flexGrow: 1, cursor: "pointer" }}
-              onClick={() => navigate("/")}
+              onClick={handleHome}
             >
               mama
             </Typography>
-            {username ? (
+            {token ? (
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <Typography variant="body1" sx={{ ml: 2 }}>
                   {username}
@@ -69,7 +82,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </Box>
             ) : (
               <Tooltip title="Login">
-                <IconButton color="inherit" onClick={() => navigate("/login")}>
+                <IconButton color="inherit" onClick={handleLogin}>
                   <LoginIcon />
                 </IconButton>
               </Tooltip>

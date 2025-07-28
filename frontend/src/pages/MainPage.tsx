@@ -23,6 +23,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { DEBUG } from "../config";
+import { authenticatedFetch, fetchJson } from "../utils/api";
 
 interface User {
   user_id: string;
@@ -108,17 +109,7 @@ const MainPage: React.FC = () => {
 
     setLoadingModels(true);
     try {
-      const response = await fetch("/models", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch available models");
-      }
-
-      const data = await response.json();
+      const data = await fetchJson<{ models: AvailableModel[] }>("/models");
       setAvailableModels(data.models || []);
     } catch (err) {
       console.error("Failed to fetch models:", err);
@@ -148,7 +139,6 @@ const MainPage: React.FC = () => {
   }, [selectedModels]);
 
   useEffect(() => {
-    if (!username) return;
     if (DEBUG) {
       // 더미 데이터
       setUsers([
@@ -191,45 +181,13 @@ const MainPage: React.FC = () => {
     const fetchData = async () => {
       try {
         // 사용자 목록과 모델 목록을 병렬로 가져옴
-        const [usersResponse, modelsResponse] = await Promise.all([
-          fetch("/users", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-          fetch("/models", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          })
+        const [usersData, modelsData] = await Promise.all([
+          fetchJson<User[]>("/users"),
+          fetchJson<{ models: AvailableModel[] }>("/models").catch(() => ({ models: [] }))
         ]);
 
-        // 사용자 목록 처리
-        const usersText = await usersResponse.text();
-        let usersData;
-        try {
-          usersData = JSON.parse(usersText);
-          if (!usersResponse.ok) {
-            throw new Error(usersData.detail || "Failed to fetch user information.");
-          }
-        } catch {
-          throw new Error("Users API did not return JSON: " + usersText.slice(0, 100));
-        }
-
-        // 모델 목록 처리
-        let modelsData = [];
-        if (modelsResponse.ok) {
-          const modelsText = await modelsResponse.text();
-          try {
-            const parsedModels = JSON.parse(modelsText);
-            modelsData = parsedModels.models || [];
-          } catch {
-            console.warn("Models API did not return valid JSON");
-          }
-        }
-
         setUsers(usersData);
-        setAvailableModels(modelsData);
+        setAvailableModels(modelsData.models || []);
         setError("");
       } catch (err: unknown) {
         if (err instanceof Error) {
@@ -327,22 +285,18 @@ const MainPage: React.FC = () => {
         setCreating(false);
         return;
       }
-      const token = localStorage.getItem("access_token");
-      const response = await fetch("/users", {
+
+      const data = await fetchJson<User>("/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...form,
           allowed_models: selectedModels.join(", ")
         }),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to create user");
-      }
+
       setUsers([...users, data]);
       setDialogOpen(false);
     } catch (err: unknown) {
@@ -355,25 +309,6 @@ const MainPage: React.FC = () => {
       setCreating(false);
     }
   };
-
-  if (!username) {
-    return (
-      <Box
-        sx={{
-          minHeight: "80vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Paper elevation={3} sx={{ p: 4, minWidth: 320, textAlign: "center" }}>
-          <Typography variant="h6" color="text.secondary">
-            Login is required.
-          </Typography>
-        </Paper>
-      </Box>
-    );
-  }
 
   return (
     <Box

@@ -33,21 +33,24 @@ const LoginPage: React.FC = () => {
           password,
         }),
       });
+
       if (!response.ok) {
         let errorMsg = "Login failed";
         if (response.status === 401) {
           errorMsg = "Invalid username or password.";
         } else if (response.status === 403) {
           errorMsg = "You do not have permission to access.";
-        } else if (response.status === 400) {
-          const data = await response.json();
-          errorMsg = data.detail || "Bad request.";
         } else {
-          const data = await response.json().catch(() => null);
-          if (data && data.detail) errorMsg = data.detail;
+          try {
+            const data = await response.json();
+            errorMsg = data.detail || errorMsg;
+          } catch {
+            // JSON 파싱 실패 시 기본 메시지 사용
+          }
         }
         throw new Error(errorMsg);
       }
+
       const data = await response.json();
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("username", username);

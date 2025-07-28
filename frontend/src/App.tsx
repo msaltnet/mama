@@ -22,16 +22,53 @@ const PrivateRoute = ({ children }: { children: ReactElement }) => {
   return children;
 };
 
+// PublicRoute: 로그인된 상태에서 접근 시 루트로 리다이렉트
+const PublicRoute = ({ children }: { children: ReactElement }) => {
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 function App() {
   return (
     <Router>
       <CssBaseline />
       <Layout>
         <Routes>
-          <Route path="/" element={<MainPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/change-password" element={<ChangePasswordPage />} />
-          <Route path="/create-admin" element={<CreateAdminPage />} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute>
+                <MainPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/change-password"
+            element={
+              <PrivateRoute>
+                <ChangePasswordPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/create-admin"
+            element={
+              <PrivateRoute>
+                <CreateAdminPage />
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/account"
             element={
