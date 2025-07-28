@@ -23,17 +23,17 @@ export const handleApiError = async (response: Response): Promise<never> => {
   } catch {
     // JSON 파싱 실패 시 기본 메시지 사용
   }
-  
+
   throw new Error(errorMsg);
 };
 
 // 인증이 필요한 API 호출을 위한 공통 함수
 export const authenticatedFetch = async (
-  url: string, 
-  options: RequestInit = {}
+  url: string,
+  options: RequestInit = {},
 ): Promise<Response> => {
   const token = localStorage.getItem("access_token");
-  
+
   if (!token && !DEBUG) {
     handleAuthError();
     throw new Error("No authentication token found");
@@ -56,9 +56,9 @@ export const authenticatedFetch = async (
 
 // JSON 응답을 파싱하는 공통 함수
 export const fetchJson = async <T>(
-  url: string, 
-  options: RequestInit = {}
+  url: string,
+  options: RequestInit = {},
 ): Promise<T> => {
   const response = await authenticatedFetch(url, options);
   return response.json();
-}; 
+};

@@ -44,11 +44,11 @@ mama는 사용자 정보에 맞게 LiteLLM Virtual Key를 손쉽게 관리할 �
 - backend - LiteLLM에서 현재 사용가능한 모델 정보를 조회해서 제공하는 api
 - frontend - 현재 사용가능한 모델 정보를 불러와서 사용자 생성시에 선택해서 사용할 수 있게 함
 - frontend - 사용자 정보 출력시 현재 사용 가능하지 않은 모델은 붉은색으로 표시
----
 - frontend - JWT 토큰 만료된 경우, logout 처리 및 루트로 이동
-- frontend - 모든 모델 설정은 어떻게 되지?
-- frontend - 사용자 정보 수정 기능 제공
 - frontend - 사용자 동시에 여러명 생성하기
+---
+- frontend - 사용자 정보 수정 기능 제공
+- frontend - 모든 모델 설정은 어떻게 되지, "all-team-models" 추가 할 수 있게.
 - frontend - 사용자 리스트 정렬 기능 제공 (각 항목 테이블 헤드 클릭으로)
 
 ## Alembic 마이그레이션 사용법

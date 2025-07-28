@@ -36,6 +36,10 @@ class UserCreateRequest(BaseModel):
     extra_info: str | None = None
 
 
+class UsersCreateListRequest(BaseModel):
+    users: list[UserCreateRequest]
+
+
 class KeyRequest(BaseModel):
     user_ids: list[str]
 

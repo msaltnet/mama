@@ -42,13 +42,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <>
       <AppBar position="static" color="primary" elevation={1} sx={{ mb: 4 }}>
-        <Box sx={{
-          maxWidth: 1400,
-          mx: "auto",
-          width: "100%",
-          px: 2, // 좌우 패딩 추가
-        }}>
-          <Toolbar sx={{ px: 0 }}> {/* Toolbar의 기본 패딩 제거 */}
+        <Box
+          sx={{
+            maxWidth: 1400,
+            mx: "auto",
+            width: "100%",
+            px: 2, // 좌우 패딩 추가
+          }}
+        >
+          <Toolbar sx={{ px: 0 }}>
+            {" "}
+            {/* Toolbar의 기본 패딩 제거 */}
             <Typography
               variant="h6"
               sx={{ flexGrow: 1, cursor: "pointer" }}

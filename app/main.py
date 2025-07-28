@@ -19,6 +19,7 @@ from .schemas import (
     AdminCreateRequest,
     PasswordChangeRequest,
     UserCreateRequest,
+    UsersCreateListRequest,
     UserRead,
     KeyRequest,
     KeyResponse,
@@ -61,9 +62,11 @@ app = FastAPI()
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
 app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="static")
 
-ASYNC_DB_URL = DB_URL.replace('postgresql+psycopg2', 'postgresql+asyncpg')
+ASYNC_DB_URL = DB_URL.replace("postgresql+psycopg2", "postgresql+asyncpg")
 engine = create_async_engine(ASYNC_DB_URL, echo=True)
-SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=AsyncSession)
+SessionLocal = async_sessionmaker(
+    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
+)
 
 
 # DB 세션 의존성 함수
@@ -86,10 +89,12 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 
-async def get_current_admin(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+async def get_current_admin(
+    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials"
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -113,7 +118,9 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 
 
 @app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+):
     try:
         result = await db.execute(select(Admin).where(Admin.username == form_data.username))
         admin = result.scalars().first()
@@ -128,7 +135,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 
 
 @app.post("/change-password")
-async def change_password(req: PasswordChangeRequest, current_admin: Admin = Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+async def change_password(
+    req: PasswordChangeRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(Admin).where(Admin.id == current_admin.id))
     admin = result.scalars().first()
     if not admin or not admin.verify_password(req.old_password):
@@ -139,7 +150,11 @@ async def change_password(req: PasswordChangeRequest, current_admin: Admin = Dep
 
 
 @app.post("/create-admin")
-async def create_admin(req: AdminCreateRequest, current_admin: Admin = Depends(superuser_required), db: AsyncSession = Depends(get_db)):
+async def create_admin(
+    req: AdminCreateRequest,
+    current_admin: Admin = Depends(superuser_required),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(Admin).where(Admin.username == req.username))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Admin username already exists.")
@@ -225,36 +240,55 @@ async def list_users(
     return out
 
 
-@app.post("/users", response_model=UserRead)
+@app.post("/users", response_model=List[UserRead])
 async def create_user(
-    req: UserCreateRequest,
+    req: UsersCreateListRequest,
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where(User.user_id == req.user_id))
-    if result.scalars().first():
-        raise HTTPException(status_code=400, detail="이미 존재하는 사용자 ID입니다.")
-    key_value = get_random_bird_key()
-    user = User(
-        user_id=req.user_id,
-        organization=req.organization,
-        key_value=key_value,
-        extra_info=req.extra_info,
-    )
-    db.add(user)
+    # 중복 검사
+    user_ids = [user.user_id for user in req.users]
+    existing_users = await db.execute(select(User).where(User.user_id.in_(user_ids)))
+    existing_user_ids = [user.user_id for user in existing_users.scalars().all()]
+
+    if existing_user_ids:
+        raise HTTPException(
+            status_code=400, detail=f"이미 존재하는 사용자 ID입니다: {', '.join(existing_user_ids)}"
+        )
+
+    # 모든 사용자 생성
+    created_users = []
+    for user_req in req.users:
+        user = User(
+            user_id=user_req.user_id,
+            organization=user_req.organization,
+            key_value=get_random_bird_key(),
+            extra_info=user_req.extra_info,
+        )
+        db.add(user)
+        created_users.append(user)
+
     await db.commit()
-    await db.refresh(user)
-    return {
-        "id": user.id,
-        "user_id": user.user_id,
-        "organization": user.organization,
-        "key_value": user.key_value,
-        "extra_info": user.extra_info,
-        "created_at": user.created_at.isoformat() if user.created_at is not None else None,
-        "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
-        "allowed_models": [],
-        "allowed_services": [],
-    }
+
+    # 생성된 사용자들을 새로고침하여 ID 등을 가져옴
+    for user in created_users:
+        await db.refresh(user)
+
+    # 응답 형식으로 변환
+    return [
+        {
+            "id": user.id,
+            "user_id": user.user_id,
+            "organization": user.organization,
+            "key_value": user.key_value,
+            "extra_info": user.extra_info,
+            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+            "allowed_models": [],
+            "allowed_services": [],
+        }
+        for user in created_users
+    ]
 
 
 def verify_server_api_key(x_api_key: str = Header(None)):

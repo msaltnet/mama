@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { DEBUG } from "../config";
-import { authenticatedFetch, fetchJson } from "../utils/api";
+import { fetchJson } from "../utils/api";
 
 interface User {
   user_id: string;
@@ -58,6 +58,7 @@ const MainPage: React.FC = () => {
   });
   const [formError, setFormError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [userIds, setUserIds] = useState<string[]>([]);
 
   // 사용 가능한 모델 관련 상태
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
@@ -98,11 +99,31 @@ const MainPage: React.FC = () => {
     if (DEBUG) {
       // DEBUG 모드에서는 더미 데이터 사용
       setAvailableModels([
-        { id: "gpt-3.5-turbo", object: "model", created: 123456, owned_by: "openai" },
+        {
+          id: "gpt-3.5-turbo",
+          object: "model",
+          created: 123456,
+          owned_by: "openai",
+        },
         { id: "gpt-4", object: "model", created: 123457, owned_by: "openai" },
-        { id: "tinyllama1", object: "model", created: 123458, owned_by: "ollama" },
-        { id: "tinyllama2", object: "model", created: 123459, owned_by: "ollama" },
-        { id: "tinyllama3", object: "model", created: 123460, owned_by: "ollama" },
+        {
+          id: "tinyllama1",
+          object: "model",
+          created: 123458,
+          owned_by: "ollama",
+        },
+        {
+          id: "tinyllama2",
+          object: "model",
+          created: 123459,
+          owned_by: "ollama",
+        },
+        {
+          id: "tinyllama3",
+          object: "model",
+          created: 123460,
+          owned_by: "ollama",
+        },
       ]);
       return;
     }
@@ -121,9 +142,9 @@ const MainPage: React.FC = () => {
 
   // 모델 선택 상태 변경 핸들러
   const handleModelSelectionChange = (modelId: string) => {
-    setSelectedModels(prev => {
+    setSelectedModels((prev) => {
       if (prev.includes(modelId)) {
-        return prev.filter(id => id !== modelId);
+        return prev.filter((id) => id !== modelId);
       } else {
         return [...prev, modelId];
       }
@@ -132,9 +153,9 @@ const MainPage: React.FC = () => {
 
   // 선택된 모델들을 문자열로 변환
   useEffect(() => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
-      allowed_models: selectedModels.join(", ")
+      allowed_models: selectedModels.join(", "),
     }));
   }, [selectedModels]);
 
@@ -167,11 +188,31 @@ const MainPage: React.FC = () => {
       setLoading(false);
       // DEBUG 모드에서는 더미 모델 데이터도 함께 설정
       setAvailableModels([
-        { id: "gpt-3.5-turbo", object: "model", created: 123456, owned_by: "openai" },
+        {
+          id: "gpt-3.5-turbo",
+          object: "model",
+          created: 123456,
+          owned_by: "openai",
+        },
         { id: "gpt-4", object: "model", created: 123457, owned_by: "openai" },
-        { id: "tinyllama1", object: "model", created: 123458, owned_by: "ollama" },
-        { id: "tinyllama2", object: "model", created: 123459, owned_by: "ollama" },
-        { id: "tinyllama3", object: "model", created: 123460, owned_by: "ollama" },
+        {
+          id: "tinyllama1",
+          object: "model",
+          created: 123458,
+          owned_by: "ollama",
+        },
+        {
+          id: "tinyllama2",
+          object: "model",
+          created: 123459,
+          owned_by: "ollama",
+        },
+        {
+          id: "tinyllama3",
+          object: "model",
+          created: 123460,
+          owned_by: "ollama",
+        },
       ]);
       return;
     }
@@ -183,7 +224,9 @@ const MainPage: React.FC = () => {
         // 사용자 목록과 모델 목록을 병렬로 가져옴
         const [usersData, modelsData] = await Promise.all([
           fetchJson<User[]>("/users"),
-          fetchJson<{ models: AvailableModel[] }>("/models").catch(() => ({ models: [] }))
+          fetchJson<{ models: AvailableModel[] }>("/models").catch(() => ({
+            models: [],
+          })),
         ]);
 
         setUsers(usersData);
@@ -212,7 +255,7 @@ const MainPage: React.FC = () => {
 
   // 모델이 사용 가능한지 확인하는 함수
   const isModelAvailable = (modelId: string) => {
-    return availableModels.some(model => model.id === modelId);
+    return availableModels.some((model) => model.id === modelId);
   };
 
   // 모델 칩을 렌더링하는 함수
@@ -249,6 +292,7 @@ const MainPage: React.FC = () => {
     });
     setSelectedModels([]);
     setFormError("");
+    setUserIds([]);
     setDialogOpen(true);
     // 다이얼로그가 열릴 때 사용 가능한 모델 정보를 불러옴
     fetchAvailableModels();
@@ -256,55 +300,70 @@ const MainPage: React.FC = () => {
   const handleDialogClose = () => {
     setDialogOpen(false);
   };
+  const parseUserIds = (inputValue: string): string[] => {
+    if (!inputValue.trim()) return [];
+    return inputValue
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+  };
+
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+
+    // User ID 입력 필드가 변경될 때 사용자 ID 목록 업데이트
+    if (e.target.name === "user_id") {
+      setUserIds(parseUserIds(e.target.value));
+    }
   };
+  const createMockUsers = (): User[] => {
+    return userIds.map((userId) => ({
+      user_id: userId,
+      organization: form.organization,
+      key_value: getRandomBirdKey(),
+      extra_info: form.extra_info,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      allowed_models: selectedModels,
+      allowed_services: [],
+    }));
+  };
+
+  const createUserRequests = () => {
+    return userIds.map((userId) => ({
+      user_id: userId,
+      organization: form.organization,
+      extra_info: form.extra_info,
+    }));
+  };
+
   const handleCreateUser = async () => {
-    if (!form.user_id || selectedModels.length === 0) {
-      setFormError("User ID and at least one model selection are required.");
+    if (userIds.length === 0 || selectedModels.length === 0) {
+      setFormError("User ID(s) and at least one model selection are required.");
       return;
     }
+
     setCreating(true);
     setFormError("");
+
     try {
       if (DEBUG) {
-        setUsers([
-          ...users,
-          {
-            user_id: form.user_id,
-            organization: form.organization,
-            key_value: getRandomBirdKey(), // 조류 이름 기반 랜덤 키
-            extra_info: form.extra_info,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            allowed_models: selectedModels,
-            allowed_services: [],
-          },
-        ]);
+        const newUsers = createMockUsers();
+        setUsers([...users, ...newUsers]);
         setDialogOpen(false);
-        setCreating(false);
         return;
       }
 
-      const data = await fetchJson<User>("/users", {
+      const createdUsers = await fetchJson<User[]>("/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...form,
-          allowed_models: selectedModels.join(", ")
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users: createUserRequests() }),
       });
 
-      setUsers([...users, data]);
+      setUsers([...users, ...createdUsers]);
       setDialogOpen(false);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setFormError(err.message);
-      } else {
-        setFormError(String(err));
-      }
+      setFormError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreating(false);
     }
@@ -383,7 +442,7 @@ const MainPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         {user.allowed_services &&
-                          user.allowed_services.length > 0
+                        user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
@@ -416,7 +475,31 @@ const MainPage: React.FC = () => {
                 onChange={handleFormChange}
                 required
                 fullWidth
+                helperText="여러 사용자를 생성하려면 콤마(,)로 구분하여 입력하세요. 예: user1, user2, user3"
+                placeholder="user1, user2, user3"
               />
+              {userIds.length > 0 && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
+                    생성될 사용자 목록 ({userIds.length}명):
+                  </Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {userIds.map((userId, index) => (
+                      <Chip
+                        key={index}
+                        label={userId}
+                        color="primary"
+                        size="small"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
               <TextField
                 label="Organization"
                 name="organization"
@@ -432,12 +515,15 @@ const MainPage: React.FC = () => {
                   Available Models
                 </Typography>
                 {loadingModels ? (
-                  <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", py: 2 }}
+                  >
                     <CircularProgress size={24} />
                   </Box>
                 ) : availableModels.length === 0 ? (
                   <Alert severity="warning">
-                    No available models found. Please check your LiteLLM configuration.
+                    No available models found. Please check your LiteLLM
+                    configuration.
                   </Alert>
                 ) : (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -446,8 +532,16 @@ const MainPage: React.FC = () => {
                         key={model.id}
                         label={model.id}
                         size="small"
-                        color={selectedModels.includes(model.id) ? "primary" : "default"}
-                        variant={selectedModels.includes(model.id) ? "filled" : "outlined"}
+                        color={
+                          selectedModels.includes(model.id)
+                            ? "primary"
+                            : "default"
+                        }
+                        variant={
+                          selectedModels.includes(model.id)
+                            ? "filled"
+                            : "outlined"
+                        }
                         onClick={() => handleModelSelectionChange(model.id)}
                         sx={{ cursor: "pointer" }}
                       />
@@ -457,7 +551,11 @@ const MainPage: React.FC = () => {
 
                 {selectedModels.length > 0 && (
                   <Box sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
                       Selected Models:
                     </Typography>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -496,7 +594,9 @@ const MainPage: React.FC = () => {
               variant="contained"
               disabled={creating || selectedModels.length === 0}
             >
-              {creating ? "Creating..." : "Create"}
+              {creating
+                ? "Creating..."
+                : `Create ${userIds.length > 1 ? `${userIds.length} Users` : "User"}`}
             </Button>
           </DialogActions>
         </Dialog>
