@@ -143,10 +143,28 @@ const MainPage: React.FC = () => {
   // 모델 선택 상태 변경 핸들러
   const handleModelSelectionChange = (modelId: string) => {
     setSelectedModels((prev) => {
-      if (prev.includes(modelId)) {
-        return prev.filter((id) => id !== modelId);
+      // all-team-models가 선택된 경우
+      if (modelId === "all-team-models") {
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 이미 선택되어 있으면 해제
+          return prev.filter((id) => id !== "all-team-models");
+        } else {
+          // all-team-models를 선택하면 다른 모든 모델 해제
+          return ["all-team-models"];
+        }
       } else {
-        return [...prev, modelId];
+        // 일반 모델 선택/해제
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 선택되어 있으면 해제하고 현재 모델만 선택
+          return [modelId];
+        } else {
+          // 일반적인 모델 선택/해제 로직
+          if (prev.includes(modelId)) {
+            return prev.filter((id) => id !== modelId);
+          } else {
+            return [...prev, modelId];
+          }
+        }
       }
     });
   };
@@ -182,6 +200,16 @@ const MainPage: React.FC = () => {
           updated_at: "2024-01-04T12:00:00",
           allowed_models: ["gpt-3.5-turbo"],
           allowed_services: ["chat"],
+        },
+        {
+          user_id: "testuser3",
+          organization: "admin-org",
+          key_value: "key-789",
+          extra_info: "모든 모델 접근 권한",
+          created_at: "2024-01-05T12:00:00",
+          updated_at: "2024-01-05T12:00:00",
+          allowed_models: ["all-team-models"],
+          allowed_services: ["chat", "file-upload", "embeddings"],
         },
       ]);
       setError("");
@@ -271,11 +299,24 @@ const MainPage: React.FC = () => {
             key={model}
             label={model}
             size="small"
-            color={isModelAvailable(model) ? "primary" : "error"}
-            variant={isModelAvailable(model) ? "filled" : "filled"}
+            color={
+              model === "all-team-models"
+                ? "secondary"
+                : isModelAvailable(model)
+                  ? "primary"
+                  : "error"
+            }
+            variant={
+              model === "all-team-models"
+                ? "filled"
+                : isModelAvailable(model)
+                  ? "filled"
+                  : "filled"
+            }
             sx={{
               fontSize: "0.75rem",
               height: "20px",
+              fontWeight: model === "all-team-models" ? "bold" : "normal",
             }}
           />
         ))}
@@ -442,7 +483,7 @@ const MainPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         {user.allowed_services &&
-                        user.allowed_services.length > 0
+                          user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
@@ -527,6 +568,32 @@ const MainPage: React.FC = () => {
                   </Alert>
                 ) : (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {/* all-team-models 옵션 */}
+                    <Chip
+                      label="all-team-models"
+                      size="small"
+                      color={
+                        selectedModels.includes("all-team-models")
+                          ? "secondary"
+                          : "default"
+                      }
+                      variant={
+                        selectedModels.includes("all-team-models")
+                          ? "filled"
+                          : "outlined"
+                      }
+                      onClick={() => handleModelSelectionChange("all-team-models")}
+                      sx={{
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        borderWidth: 2
+                      }}
+                    />
+
+                    {/* 구분선 */}
+                    <Divider orientation="vertical" flexItem />
+
+                    {/* 일반 모델들 */}
                     {availableModels.map((model) => (
                       <Chip
                         key={model.id}
@@ -563,9 +630,10 @@ const MainPage: React.FC = () => {
                         <Chip
                           key={modelId}
                           label={modelId}
-                          color="primary"
+                          color={modelId === "all-team-models" ? "secondary" : "primary"}
                           size="small"
                           onDelete={() => handleModelSelectionChange(modelId)}
+                          sx={modelId === "all-team-models" ? { fontWeight: "bold" } : {}}
                         />
                       ))}
                     </Box>

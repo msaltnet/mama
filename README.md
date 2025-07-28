@@ -47,9 +47,10 @@ mama는 사용자 정보에 맞게 LiteLLM Virtual Key를 손쉽게 관리할 �
 - frontend - JWT 토큰 만료된 경우, logout 처리 및 루트로 이동
 - frontend - 사용자 동시에 여러명 생성하기
 ---
-- frontend - 사용자 정보 수정 기능 제공
 - frontend - 모든 모델 설정은 어떻게 되지, "all-team-models" 추가 할 수 있게.
 - frontend - 사용자 리스트 정렬 기능 제공 (각 항목 테이블 헤드 클릭으로)
+- frontend - 사용자 리스트에서 검색 기능 추가, 키워드 입력하면 id, 조직 기준으로 검색된 사용자만 표시되게 해줘.
+- frontend - 사용자 정보 수정 기능 제공
 
 ## Alembic 마이그레이션 사용법
 
