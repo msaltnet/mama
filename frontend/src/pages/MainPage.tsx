@@ -20,6 +20,7 @@ import {
   Stack,
   Chip,
   Divider,
+  TableSortLabel,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { DEBUG } from "../config";
@@ -43,6 +44,13 @@ interface AvailableModel {
   owned_by: string;
 }
 
+type Order = 'asc' | 'desc';
+
+interface SortConfig {
+  key: keyof User;
+  direction: Order;
+}
+
 const MainPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +72,12 @@ const MainPage: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+
+  // 정렬 관련 상태
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: 'user_id',
+    direction: 'asc'
+  });
 
   // 조류 이름 배열 추가
   const BIRD_NAMES = [
@@ -357,6 +371,50 @@ const MainPage: React.FC = () => {
       setUserIds(parseUserIds(e.target.value));
     }
   };
+
+  // 정렬 처리 함수
+  const handleSort = (key: keyof User) => {
+    setSortConfig((prevConfig) => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // 정렬된 사용자 목록 생성
+  const sortedUsers = React.useMemo(() => {
+    const sorted = [...users].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      // null/undefined 처리
+      if (!aValue && !bValue) return 0;
+      if (!aValue) return 1;
+      if (!bValue) return -1;
+
+      // 배열 타입 처리 (allowed_models, allowed_services)
+      if (Array.isArray(aValue) && Array.isArray(bValue)) {
+        const aStr = aValue.join(', ');
+        const bStr = bValue.join(', ');
+        return sortConfig.direction === 'asc'
+          ? aStr.localeCompare(bStr)
+          : bStr.localeCompare(aStr);
+      }
+
+      // 문자열 타입 처리
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortConfig.direction === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      // 기본 비교
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [users, sortConfig]);
   const createMockUsers = (): User[] => {
     return userIds.map((userId) => ({
       user_id: userId,
@@ -454,25 +512,89 @@ const MainPage: React.FC = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>User ID</TableCell>
-                  <TableCell>Organization</TableCell>
-                  <TableCell>Key Value</TableCell>
-                  <TableCell>Extra Info</TableCell>
-                  <TableCell>Models</TableCell>
-                  <TableCell>Services</TableCell>
-                  <TableCell>Created At</TableCell>
-                  <TableCell>Updated At</TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'user_id'}
+                      direction={sortConfig.key === 'user_id' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('user_id')}
+                    >
+                      User ID
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'organization'}
+                      direction={sortConfig.key === 'organization' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('organization')}
+                    >
+                      Organization
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'key_value'}
+                      direction={sortConfig.key === 'key_value' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('key_value')}
+                    >
+                      Key Value
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'extra_info'}
+                      direction={sortConfig.key === 'extra_info' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('extra_info')}
+                    >
+                      Extra Info
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'allowed_models'}
+                      direction={sortConfig.key === 'allowed_models' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('allowed_models')}
+                    >
+                      Models
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'allowed_services'}
+                      direction={sortConfig.key === 'allowed_services' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('allowed_services')}
+                    >
+                      Services
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'created_at'}
+                      direction={sortConfig.key === 'created_at' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('created_at')}
+                    >
+                      Created At
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortConfig.key === 'updated_at'}
+                      direction={sortConfig.key === 'updated_at' ? sortConfig.direction : 'asc'}
+                      onClick={() => handleSort('updated_at')}
+                    >
+                      Updated At
+                    </TableSortLabel>
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.length === 0 ? (
+                {sortedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
                       No user information available.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user) => (
+                  sortedUsers.map((user) => (
                     <TableRow key={user.user_id}>
                       <TableCell>{user.user_id}</TableCell>
                       <TableCell>{user.organization || "-"}</TableCell>
