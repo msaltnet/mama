@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
+import EditIcon from "@mui/icons-material/Edit";
 import { DEBUG } from "../config";
 import { fetchJson } from "../utils/api";
 import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
@@ -75,6 +76,16 @@ const MainPage: React.FC = () => {
   // 검색 관련 상태
   const [searchTerm, setSearchTerm] = useState("");
 
+  // 수정 다이얼로그 관련 상태
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({
+    organization: "",
+    extra_info: "",
+  });
+  const [editSelectedModels, setEditSelectedModels] = useState<string[]>([]);
+  const [editFormError, setEditFormError] = useState("");
+  const [updating, setUpdating] = useState(false);
 
 
   // 사용 가능한 모델 정보를 불러오는 함수
@@ -126,6 +137,34 @@ const MainPage: React.FC = () => {
   // 모델 선택 상태 변경 핸들러
   const handleModelSelectionChange = (modelId: string) => {
     setSelectedModels((prev) => {
+      // all-team-models가 선택된 경우
+      if (modelId === "all-team-models") {
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 이미 선택되어 있으면 해제
+          return prev.filter((id) => id !== "all-team-models");
+        } else {
+          // all-team-models를 선택하면 다른 모든 모델 해제
+          return ["all-team-models"];
+        }
+      } else {
+        // 일반 모델 선택/해제
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 선택되어 있으면 해제하고 현재 모델만 선택
+          return [modelId];
+        } else {
+          // 일반적인 모델 선택/해제 로직
+          if (prev.includes(modelId)) {
+            return prev.filter((id) => id !== modelId);
+          } else {
+            return [...prev, modelId];
+          }
+        }
+      }
+    });
+  };
+
+  const handleEditModelSelectionChange = (modelId: string) => {
+    setEditSelectedModels((prev) => {
       // all-team-models가 선택된 경우
       if (modelId === "all-team-models") {
         if (prev.includes("all-team-models")) {
@@ -288,6 +327,10 @@ const MainPage: React.FC = () => {
     }
   };
 
+  const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
   // 정렬 처리 함수
   const handleSort = (key: keyof User) => {
     setSortConfig((prevConfig) => ({
@@ -384,6 +427,79 @@ const MainPage: React.FC = () => {
       setFormError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreating(false);
+    }
+  };
+
+  // 사용자 수정 다이얼로그 열기
+  const handleEditDialogOpen = (user: User) => {
+    setEditingUser(user);
+    setEditForm({
+      organization: user.organization || "",
+      extra_info: user.extra_info || "",
+    });
+    setEditSelectedModels([...user.allowed_models]);
+    setEditFormError("");
+    setEditDialogOpen(true);
+  };
+
+  // 사용자 수정 다이얼로그 닫기
+  const handleEditDialogClose = () => {
+    setEditDialogOpen(false);
+    setEditingUser(null);
+    setEditForm({
+      organization: "",
+      extra_info: "",
+    });
+    setEditSelectedModels([]);
+    setEditFormError("");
+  };
+
+  // 사용자 정보 업데이트
+  const handleUpdateUser = async () => {
+    if (!editingUser || editSelectedModels.length === 0) {
+      setEditFormError("At least one model selection is required.");
+      return;
+    }
+
+    setUpdating(true);
+    setEditFormError("");
+
+    try {
+      if (DEBUG) {
+        // DEBUG 모드에서는 로컬 상태만 업데이트
+        setUsers(users.map(user =>
+          user.user_id === editingUser.user_id
+            ? {
+              ...user,
+              organization: editForm.organization,
+              extra_info: editForm.extra_info,
+              allowed_models: editSelectedModels,
+              updated_at: new Date().toISOString()
+            }
+            : user
+        ));
+        setEditDialogOpen(false);
+        return;
+      }
+
+      const updatedUser = await fetchJson<User>(`/users/${editingUser.user_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organization: editForm.organization,
+          extra_info: editForm.extra_info,
+          allowed_models: editSelectedModels,
+        }),
+      });
+
+      setUsers(users.map(user =>
+        user.user_id === editingUser.user_id ? updatedUser : user
+      ));
+      setEditDialogOpen(false);
+    } catch (err: unknown) {
+      setEditFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -533,7 +649,16 @@ const MainPage: React.FC = () => {
                   </TableRow>
                 ) : (
                   filteredAndSortedUsers.map((user) => (
-                    <TableRow key={user.user_id}>
+                    <TableRow
+                      key={user.user_id}
+                      onClick={() => handleEditDialogOpen(user)}
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        }
+                      }}
+                    >
                       <TableCell>{user.user_id}</TableCell>
                       <TableCell>{user.organization || "-"}</TableCell>
                       <TableCell>{user.key_value}</TableCell>
@@ -566,9 +691,9 @@ const MainPage: React.FC = () => {
           maxWidth="md"
           fullWidth
         >
-          <DialogTitle>Create User</DialogTitle>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
+          <DialogTitle sx={{ p: 2 }}>Create User</DialogTitle>
+          <DialogContent sx={{ pt: 3, pb: 3 }}>
+            <Stack spacing={3}>
               <TextField
                 label="User ID"
                 name="user_id"
@@ -609,9 +734,9 @@ const MainPage: React.FC = () => {
                 fullWidth
               />
 
-              <Divider />
+              <Divider sx={{ my: 1 }} />
 
-              <Box>
+              <Box sx={{ py: 1 }}>
                 <Typography variant="h6" gutterBottom>
                   Available Models
                 </Typography>
@@ -627,7 +752,7 @@ const MainPage: React.FC = () => {
                     configuration.
                   </Alert>
                 ) : (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
                     {/* all-team-models 옵션 */}
                     <Chip
                       label="all-team-models"
@@ -677,7 +802,7 @@ const MainPage: React.FC = () => {
                 )}
 
                 {selectedModels.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
+                  <Box sx={{ mt: 2, py: 1 }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -685,7 +810,7 @@ const MainPage: React.FC = () => {
                     >
                       Selected Models:
                     </Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
                       {selectedModels.map((modelId) => (
                         <Chip
                           key={modelId}
@@ -709,11 +834,12 @@ const MainPage: React.FC = () => {
                 fullWidth
                 multiline
                 rows={2}
+                sx={{ mt: 1 }}
               />
               {formError && <Alert severity="error">{formError}</Alert>}
             </Stack>
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={handleDialogClose} disabled={creating}>
               Cancel
             </Button>
@@ -725,6 +851,158 @@ const MainPage: React.FC = () => {
               {creating
                 ? "Creating..."
                 : `Create ${userIds.length > 1 ? `${userIds.length} Users` : "User"}`}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 사용자 수정 다이얼로그 */}
+        <Dialog
+          open={editDialogOpen}
+          onClose={handleEditDialogClose}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle sx={{ pb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <EditIcon />
+              Edit User: {editingUser?.user_id}
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3, pb: 3 }}>
+            <Stack spacing={3}>
+              <Divider sx={{ my: 1 }} />
+
+              <TextField
+                label="User ID"
+                value={editingUser?.user_id || ""}
+                fullWidth
+                disabled
+                helperText="User ID cannot be modified"
+              />
+
+              <TextField
+                label="Organization"
+                name="organization"
+                value={editForm.organization}
+                onChange={handleEditFormChange}
+                fullWidth
+              />
+
+              <Divider sx={{ my: 1 }} />
+
+              <Box sx={{ py: 1 }}>
+                <Typography variant="h6" gutterBottom>
+                  Available Models
+                </Typography>
+                {loadingModels ? (
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", py: 2 }}
+                  >
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : availableModels.length === 0 ? (
+                  <Alert severity="warning">
+                    No available models found. Please check your LiteLLM
+                    configuration.
+                  </Alert>
+                ) : (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                    {/* all-team-models 옵션 */}
+                    <Chip
+                      label="all-team-models"
+                      size="small"
+                      color={
+                        editSelectedModels.includes("all-team-models")
+                          ? "secondary"
+                          : "default"
+                      }
+                      variant={
+                        editSelectedModels.includes("all-team-models")
+                          ? "filled"
+                          : "outlined"
+                      }
+                      onClick={() => handleEditModelSelectionChange("all-team-models")}
+                      sx={{
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        borderWidth: 2
+                      }}
+                    />
+
+                    {/* 구분선 */}
+                    <Divider orientation="vertical" flexItem />
+
+                    {/* 일반 모델들 */}
+                    {availableModels.map((model) => (
+                      <Chip
+                        key={model.id}
+                        label={model.id}
+                        size="small"
+                        color={
+                          editSelectedModels.includes(model.id)
+                            ? "primary"
+                            : "default"
+                        }
+                        variant={
+                          editSelectedModels.includes(model.id)
+                            ? "filled"
+                            : "outlined"
+                        }
+                        onClick={() => handleEditModelSelectionChange(model.id)}
+                        sx={{ cursor: "pointer" }}
+                      />
+                    ))}
+                  </Box>
+                )}
+
+                {editSelectedModels.length > 0 && (
+                  <Box sx={{ mt: 2, py: 1 }}>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Selected Models:
+                    </Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                      {editSelectedModels.map((modelId) => (
+                        <Chip
+                          key={modelId}
+                          label={modelId}
+                          color={modelId === "all-team-models" ? "secondary" : "primary"}
+                          size="small"
+                          onDelete={() => handleEditModelSelectionChange(modelId)}
+                          sx={modelId === "all-team-models" ? { fontWeight: "bold" } : {}}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+              <TextField
+                label="Extra Info"
+                name="extra_info"
+                value={editForm.extra_info}
+                onChange={handleEditFormChange}
+                fullWidth
+                multiline
+                rows={2}
+                sx={{ mt: 1 }}
+              />
+              {editFormError && <Alert severity="error">{editFormError}</Alert>}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleEditDialogClose} disabled={updating}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateUser}
+              variant="contained"
+              disabled={updating || editSelectedModels.length === 0}
+            >
+              {updating ? "Updating..." : "Update User"}
             </Button>
           </DialogActions>
         </Dialog>

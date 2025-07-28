@@ -9,16 +9,17 @@ from fastapi import Depends, FastAPI, HTTPException, status, Body, Header
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, delete
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY
-from .models import Admin, Base, User
+from .models import Admin, Base, User, AllowedModel, AllowedService
 from .schemas import (
     AdminCreateRequest,
     PasswordChangeRequest,
     UserCreateRequest,
+    UserUpdateRequest,
     UsersCreateListRequest,
     UserRead,
     KeyRequest,
@@ -337,3 +338,76 @@ async def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
         return {"models": models}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/users/{user_id}", response_model=UserRead)
+async def update_user(
+    user_id: str,
+    req: UserUpdateRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """사용자 정보를 수정합니다."""
+    try:
+        # 사용자 존재 여부 확인
+        result = await db.execute(select(User).where(User.user_id == user_id))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found",
+            )
+
+        # 사용자 정보 업데이트
+        if req.organization is not None:
+            user.organization = req.organization
+        if req.extra_info is not None:
+            user.extra_info = req.extra_info
+
+        # allowed_models 업데이트
+        if req.allowed_models is not None:
+            # 기존 allowed_models 삭제
+            await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
+            
+            # 새로운 allowed_models 추가
+            for model_name in req.allowed_models:
+                allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
+                db.add(allowed_model)
+
+        # updated_at 필드 업데이트
+        user.updated_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(user)
+
+        # 업데이트된 allowed_models와 allowed_services 조회
+        models_result = await db.execute(
+            select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
+        )
+        allowed_models = [row[0] for row in models_result.fetchall()]
+        
+        services_result = await db.execute(
+            select(AllowedService.service_name).where(AllowedService.user_id == user.id)
+        )
+        allowed_services = [row[0] for row in services_result.fetchall()]
+
+        return {
+            "id": user.id,
+            "user_id": user.user_id,
+            "organization": user.organization,
+            "key_value": user.key_value,
+            "extra_info": user.extra_info,
+            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+            "allowed_models": allowed_models,
+            "allowed_services": allowed_services,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user: {str(e)}",
+        )

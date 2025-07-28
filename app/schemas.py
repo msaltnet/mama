@@ -36,6 +36,12 @@ class UserCreateRequest(BaseModel):
     extra_info: str | None = None
 
 
+class UserUpdateRequest(BaseModel):
+    organization: str | None = None
+    extra_info: str | None = None
+    allowed_models: list[str] = []
+
+
 class UsersCreateListRequest(BaseModel):
     users: list[UserCreateRequest]
 
