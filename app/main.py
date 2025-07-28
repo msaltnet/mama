@@ -27,6 +27,27 @@ import random
 from .litellm_service import LiteLLMService
 
 
+def init_db():
+    """기본 슈퍼 관리자 계정 생성"""
+    # 동기 엔진 생성
+    sync_engine = create_engine(DB_URL)
+
+    # 기본 슈퍼 관리자 계정 생성
+    with sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)() as session:
+        # 이미 mama 계정이 있는지 확인
+        existing_admin = session.query(Admin).filter(Admin.username == "mama").first()
+        if not existing_admin:
+            admin = Admin(username="mama", is_super_admin=True)
+            admin.set_password("mama")
+            session.add(admin)
+            session.commit()
+            print("기본 슈퍼 관리자 계정이 생성되었습니다. (mama/mama)")
+        else:
+            print("기본 슈퍼 관리자 계정이 이미 존재합니다.")
+
+    sync_engine.dispose()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup 단계
@@ -68,7 +89,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 async def get_current_admin(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Could not validate credentials"
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
