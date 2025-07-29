@@ -2,14 +2,34 @@ import os
 import httpx
 from typing import List, Optional, Dict, Any
 
+# 환경변수 설정
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
 LITELLM_MASTER_KEY = os.getenv("LITELLM_MASTER_KEY", "sk-1234")
+LITELLM_TIMEOUT = int(os.getenv("LITELLM_TIMEOUT", "10"))
+LITELLM_MAX_RETRIES = int(os.getenv("LITELLM_MAX_RETRIES", "3"))
+LITELLM_RETRY_DELAY = float(os.getenv("LITELLM_RETRY_DELAY", "1.0"))
 
 
 class LiteLLMService:
     def __init__(self, base_url: Optional[str] = None, master_key: Optional[str] = None):
         self.base_url = base_url or LITELLM_URL
         self.master_key = master_key or LITELLM_MASTER_KEY
+        self.timeout = LITELLM_TIMEOUT
+        self.max_retries = LITELLM_MAX_RETRIES
+        self.retry_delay = LITELLM_RETRY_DELAY
+
+    async def _make_request(self, method: str, url: str, headers: dict, json_data: Optional[dict] = None) -> httpx.Response:
+        """
+        HTTP 요청을 수행하는 공통 메서드
+        """
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            if method.upper() == "GET":
+                resp = await client.get(url, headers=headers)
+            elif method.upper() == "POST":
+                resp = await client.post(url, headers=headers, json=json_data)
+            else:
+                raise ValueError(f"지원하지 않는 HTTP 메서드: {method}")
+            return resp
 
     async def get_models(self) -> List[Dict[str, Any]]:
         """
@@ -22,8 +42,7 @@ class LiteLLMService:
             "Authorization": f"Bearer {self.master_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers)
+        resp = await self._make_request("GET", url, headers)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM 모델 리스트 조회 실패: {resp.status_code} {resp.text}")
         data = resp.json()
@@ -57,8 +76,7 @@ class LiteLLMService:
             payload["metadata"] = metadata
         if key_alias:
             payload["key_alias"] = key_alias
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, headers=headers, json=payload)
+        resp = await self._make_request("POST", url, headers, payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 생성 실패: {resp.status_code} {resp.text}")
         data = resp.json()
@@ -79,8 +97,7 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"keys": [key]}  # LiteLLM은 'keys' 리스트를 요구함
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, headers=headers, json=payload)
+        resp = await self._make_request("POST", url, headers, payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 삭제 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
@@ -98,8 +115,7 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"key": key, "key_alias": key_alias}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, headers=headers, json=payload)
+        resp = await self._make_request("POST", url, headers, payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key alias 수정 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
@@ -117,8 +133,7 @@ class LiteLLMService:
             "Content-Type": "application/json",
         }
         payload = {"key": key, "models": models}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, headers=headers, json=payload)
+        resp = await self._make_request("POST", url, headers, payload)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 모델 수정 실패: {resp.status_code} {resp.text}")
         # 성공 시 별도 반환값 없음
@@ -135,8 +150,7 @@ class LiteLLMService:
             "Authorization": f"Bearer {self.master_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers)
+        resp = await self._make_request("GET", url, headers)
         if resp.status_code != 200:
             raise Exception(f"LiteLLM Key 모델 조회 실패: {resp.status_code} {resp.text}")
         data = resp.json()
