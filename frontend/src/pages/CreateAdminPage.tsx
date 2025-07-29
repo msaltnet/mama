@@ -35,7 +35,7 @@ const CreateAdminPage: React.FC = () => {
   };
 
   return (
-    <Paper elevation={3} sx={{ p: 4 }}>
+    <Paper elevation={0} sx={{ p: 4, border: "none" }}>
       <Typography variant="h6" align="center" gutterBottom>
         Create Admin Account (Super Admin Only)
       </Typography>

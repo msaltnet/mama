@@ -20,23 +20,13 @@ const AccountSettingsPage: React.FC = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "80vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        px: 2, // 좌우 패딩 추가
       }}
     >
-      <Paper
-        elevation={3}
-        sx={{
-          p: 4,
-          minWidth: 400,
-          maxWidth: 600, // 계정 설정은 중간 크기
-          width: "100%",
-          mx: "auto", // 중앙 정렬
-        }}
-      >
+      <Paper elevation={3} sx={{ p: 4, minWidth: 400 }}>
         <Tabs value={tab} onChange={handleTabChange} centered>
           {tabList.map((tab) => (
             <Tab key={tab.label} label={tab.label} />

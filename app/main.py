@@ -542,7 +542,10 @@ async def batch_delete_users(
 
         await db.commit()
 
-        return {"message": f"Successfully deleted {len(req.user_ids)} users", "deleted_user_ids": req.user_ids}
+        return {
+            "message": f"Successfully deleted {len(req.user_ids)} users",
+            "deleted_user_ids": req.user_ids,
+        }
     except HTTPException:
         raise
     except Exception as e:

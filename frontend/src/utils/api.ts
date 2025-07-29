@@ -64,7 +64,9 @@ export const fetchJson = async <T>(
 };
 
 // 사용자 삭제 API 함수
-export const deleteUsers = async (userIds: string[]): Promise<{ message: string; deleted_user_ids: string[] }> => {
+export const deleteUsers = async (
+  userIds: string[],
+): Promise<{ message: string; deleted_user_ids: string[] }> => {
   return fetchJson("/users/batch", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },

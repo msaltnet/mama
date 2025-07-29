@@ -549,12 +549,12 @@ const MainPage: React.FC = () => {
           users.map((user) =>
             user.user_id === editingUser.user_id
               ? {
-                ...user,
-                organization: editForm.organization,
-                extra_info: editForm.extra_info,
-                allowed_models: editSelectedModels,
-                updated_at: new Date().toISOString(),
-              }
+                  ...user,
+                  organization: editForm.organization,
+                  extra_info: editForm.extra_info,
+                  allowed_models: editSelectedModels,
+                  updated_at: new Date().toISOString(),
+                }
               : user,
           ),
         );
@@ -737,7 +737,9 @@ const MainPage: React.FC = () => {
     try {
       if (DEBUG) {
         // DEBUG 모드에서는 로컬 상태만 업데이트
-        setUsers(users.filter((user) => !selectedUserIds.includes(user.user_id)));
+        setUsers(
+          users.filter((user) => !selectedUserIds.includes(user.user_id)),
+        );
         setDeleteDialogOpen(false);
         setSelectedUserIds([]); // 선택된 사용자들 초기화
         return;
@@ -763,7 +765,8 @@ const MainPage: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        px: 2, // 좌우 패딩 추가
+        px: 2, // 좌우 패딩 추가,
+        mb: 4,
       }}
     >
       <Paper
@@ -842,7 +845,7 @@ const MainPage: React.FC = () => {
                     <Checkbox
                       checked={
                         selectedUserIds.length ===
-                        filteredAndSortedUsers.length &&
+                          filteredAndSortedUsers.length &&
                         filteredAndSortedUsers.length > 0
                       }
                       indeterminate={
@@ -1005,7 +1008,7 @@ const MainPage: React.FC = () => {
                       </TableCell>
                       <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {user.allowed_services &&
-                          user.allowed_services.length > 0
+                        user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
@@ -1022,6 +1025,7 @@ const MainPage: React.FC = () => {
             </Table>
           </TableContainer>
         )}
+
         <Dialog
           open={dialogOpen}
           onClose={handleDialogClose}
@@ -1548,7 +1552,12 @@ const MainPage: React.FC = () => {
         </Dialog>
 
         {/* 삭제 확인 다이얼로그 */}
-        <Dialog open={deleteDialogOpen} onClose={handleDeleteDialogClose} maxWidth="sm" fullWidth>
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={handleDeleteDialogClose}
+          maxWidth="sm"
+          fullWidth
+        >
           <DialogTitle>사용자 삭제 확인</DialogTitle>
           <DialogContent>
             <Typography>
@@ -1566,7 +1575,11 @@ const MainPage: React.FC = () => {
                   {users
                     .filter((user) => selectedUserIds.includes(user.user_id))
                     .map((user) => (
-                      <Typography key={user.user_id} variant="body2" sx={{ py: 0.5 }}>
+                      <Typography
+                        key={user.user_id}
+                        variant="body2"
+                        sx={{ py: 0.5 }}
+                      >
                         • {user.user_id} ({user.organization || "N/A"})
                       </Typography>
                     ))}

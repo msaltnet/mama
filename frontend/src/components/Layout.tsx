@@ -95,9 +95,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </Toolbar>
         </Box>
       </AppBar>
-      <Box sx={{ flex: 1 }}>
-        {children}
-      </Box>
+      <Box sx={{ flex: 1 }}>{children}</Box>
       <Footer />
     </Box>
   );
