@@ -233,7 +233,7 @@ async def create_user(
     litellm_service = LiteLLMService()
 
     # 모든 사용자 생성
-    created_users = []
+    created_users_data = []
     for user_req in req.users:
         try:
             # LiteLLM에서 실제 키 생성
@@ -251,7 +251,7 @@ async def create_user(
                 extra_info=user_req.extra_info,
             )
             db.add(user)
-            created_users.append(user)
+            created_users_data.append({"user": user, "user_req": user_req})
 
         except Exception as e:
             # 키 생성 실패 시 롤백
@@ -264,39 +264,50 @@ async def create_user(
     # 먼저 사용자들을 커밋하여 ID를 생성
     await db.commit()
 
-    # 생성된 사용자들을 새로고침하여 ID 등을 가져옴
-    for user in created_users:
-        await db.refresh(user)
+    # 생성된 사용자들의 ID를 조회하고 모델 권한 설정
+    for data in created_users_data:
+        # 사용자 ID를 조회하여 가져옴
+        result = await db.execute(select(User.id).where(User.user_id == data["user_req"].user_id))
+        user_id = result.scalar_one()
 
         # 사용자 모델 권한 설정 (ID가 생성된 후)
-        for user_req in req.users:
-            if user_req.user_id == user.user_id:
-                for model_name in user_req.allowed_models:
-                    allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
-                    db.add(allowed_model)
-                break
+        for model_name in data["user_req"].allowed_models:
+            allowed_model = AllowedModel(user_id=user_id, model_name=model_name)
+            db.add(allowed_model)
 
     # 모델 권한을 커밋
     await db.commit()
 
     # 응답 형식으로 변환
     result_users = []
-    for user in created_users:
+    for data in created_users_data:
+        # 생성된 사용자 정보를 다시 조회
+        result = await db.execute(select(User).where(User.user_id == data["user_req"].user_id))
+        created_user = result.scalar_one()
+
         # 생성된 사용자의 allowed_models 조회
         models_result = await db.execute(
-            select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
+            select(AllowedModel.model_name).where(AllowedModel.user_id == created_user.id)
         )
         allowed_models = [row[0] for row in models_result.fetchall()]
 
         result_users.append(
             {
-                "id": user.id,
-                "user_id": user.user_id,
-                "organization": user.organization,
-                "key_value": user.key_value,
-                "extra_info": user.extra_info,
-                "created_at": user.created_at.isoformat() if user.created_at is not None else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+                "id": created_user.id,
+                "user_id": created_user.user_id,
+                "organization": created_user.organization,
+                "key_value": created_user.key_value,
+                "extra_info": created_user.extra_info,
+                "created_at": (
+                    created_user.created_at.isoformat()
+                    if created_user.created_at is not None
+                    else None
+                ),
+                "updated_at": (
+                    created_user.updated_at.isoformat()
+                    if created_user.updated_at is not None
+                    else None
+                ),
                 "allowed_models": allowed_models,
                 "allowed_services": [],
             }
