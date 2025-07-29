@@ -253,11 +253,6 @@ async def create_user(
             db.add(user)
             created_users.append(user)
 
-            # 사용자 모델 권한 설정
-            for model_name in user_req.allowed_models:
-                allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
-                db.add(allowed_model)
-
         except Exception as e:
             # 키 생성 실패 시 롤백
             await db.rollback()
@@ -266,11 +261,23 @@ async def create_user(
                 detail=f"사용자 {user_req.user_id}의 키 생성에 실패했습니다: {str(e)}",
             )
 
+    # 먼저 사용자들을 커밋하여 ID를 생성
     await db.commit()
 
     # 생성된 사용자들을 새로고침하여 ID 등을 가져옴
     for user in created_users:
         await db.refresh(user)
+
+        # 사용자 모델 권한 설정 (ID가 생성된 후)
+        for user_req in req.users:
+            if user_req.user_id == user.user_id:
+                for model_name in user_req.allowed_models:
+                    allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
+                    db.add(allowed_model)
+                break
+
+    # 모델 권한을 커밋
+    await db.commit()
 
     # 응답 형식으로 변환
     result_users = []
