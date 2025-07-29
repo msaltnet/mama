@@ -1,12 +1,13 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev-mode": "cross-env VITE_DEBUG=true vite",
     "build": "npx tsc -b && npx vite build",
+    "build:custom": "cross-env ISSUE_REPORT_URL=https://github.com/your-username/mama/issues npx tsc -b && npx vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
+    "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",

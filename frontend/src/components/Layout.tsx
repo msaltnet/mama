@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import LoginIcon from "@mui/icons-material/Login";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SettingsIcon from "@mui/icons-material/Settings";
+import Footer from "./Footer";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   return (
-    <>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <AppBar position="static" color="primary" elevation={1} sx={{ mb: 4 }}>
         <Box
           sx={{
@@ -94,8 +95,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </Toolbar>
         </Box>
       </AppBar>
-      {children}
-    </>
+      <Box sx={{ flex: 1 }}>
+        {children}
+      </Box>
+      <Footer />
+    </Box>
   );
 };
 
