@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     # shutdown 단계 (필요하면 여기에 종료 처리 추가)
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
 app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="static")
