@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: mama_db
-      POSTGRES_USER: mama_user
-      POSTGRES_PASSWORD: mama_password
+      POSTGRES_DB: ${POSTGRES_DB:-mama_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mama_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -15,35 +15,41 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: mama_db
-      POSTGRES_USER: mama_user
-      POSTGRES_PASSWORD: mama_password
-      JWT_SECRET_KEY: your_jwt_secret_key_here
-      SERVER_API_KEY: your_server_api_key_here
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-mama_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mama_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your_jwt_secret_key_here}
+      SERVER_API_KEY: ${SERVER_API_KEY:-your_server_api_key_here}
+      ISSUE_REPORT_URL: ${ISSUE_REPORT_URL:-https://github.com/your-username/mama/issues}
+      # LiteLLM 설정
+      LITELLM_URL: ${LITELLM_URL:-http://host.docker.internal:4444}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-4444}
+      LITELLM_TIMEOUT: ${LITELLM_TIMEOUT:-10}
+      LITELLM_MAX_RETRIES: ${LITELLM_MAX_RETRIES:-3}
+      LITELLM_RETRY_DELAY: ${LITELLM_RETRY_DELAY:-1.0}
     ports:
       - "8000:8000"
     depends_on:
       - db
-    volumes:
-      - ./.env:/app/.env
+    # If needed
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
 
   migrate:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: mama_db
-      POSTGRES_USER: mama_user
-      POSTGRES_PASSWORD: mama_password
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-mama_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mama_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
     depends_on:
       - db
     command: alembic upgrade head
-    volumes:
-      - ./.env:/app/.env
     profiles: ["manual"]
 
 volumes:
