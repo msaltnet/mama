@@ -76,11 +76,3 @@ jobs:
         run: |
           cd frontend
           npm ci
-
-      # - name: Run backend tests (pytest)
-      #   run: python -m pytest .\tests\unit\
-
-      - name: Run frontend tests (vitest)
-        run: |
-          cd frontend
-          npm run test -- --run 

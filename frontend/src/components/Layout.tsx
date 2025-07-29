@@ -54,13 +54,29 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <Toolbar sx={{ px: 0 }}>
             {" "}
             {/* Toolbar의 기본 패딩 제거 */}
-            <Typography
-              variant="h6"
-              sx={{ flexGrow: 1, cursor: "pointer" }}
+            <Box
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                alignItems: "center",
+                cursor: "pointer",
+              }}
               onClick={handleHome}
             >
-              mama
-            </Typography>
+              <img
+                src={`${import.meta.env.BASE_URL}mama.jpg`}
+                alt="Mama"
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  marginRight: "8px",
+                  objectFit: "cover",
+                  objectPosition: "center",
+                }}
+              />
+              <Typography variant="h6">mama</Typography>
+            </Box>
             {token ? (
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <Typography variant="body1" sx={{ ml: 2 }}>
