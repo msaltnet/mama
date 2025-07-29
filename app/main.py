@@ -27,7 +27,6 @@ from .schemas import (
     KeyRequest,
     KeyResponse,
 )
-import random
 from .litellm_service import LiteLLMService
 
 
@@ -183,37 +182,6 @@ async def health_check():
     return {"status": "ok"}
 
 
-# 조류 이름 리스트
-BIRD_NAMES = [
-    "sparrow",
-    "eagle",
-    "owl",
-    "parrot",
-    "falcon",
-    "heron",
-    "crane",
-    "duck",
-    "swan",
-    "magpie",
-    "woodpecker",
-    "kingfisher",
-    "pigeon",
-    "dove",
-    "wren",
-    "robin",
-    "finch",
-    "tit",
-    "jay",
-    "lark",
-]
-
-
-def get_random_bird_key():
-    bird = random.choice(BIRD_NAMES)
-    num = random.randint(1000, 9999)
-    return f"{bird}-{num}"
-
-
 @app.get("/users", response_model=List[UserRead])
 async def list_users(
     organization: Optional[str] = None,
@@ -261,17 +229,42 @@ async def create_user(
             status_code=400, detail=f"이미 존재하는 사용자 ID입니다: {', '.join(existing_user_ids)}"
         )
 
+    # LiteLLM 서비스 초기화
+    litellm_service = LiteLLMService()
+
     # 모든 사용자 생성
     created_users = []
     for user_req in req.users:
-        user = User(
-            user_id=user_req.user_id,
-            organization=user_req.organization,
-            key_value=get_random_bird_key(),
-            extra_info=user_req.extra_info,
-        )
-        db.add(user)
-        created_users.append(user)
+        try:
+            # LiteLLM에서 실제 키 생성
+            # 프론트엔드에서 전달받은 모델 리스트 사용
+            key_value = await litellm_service.generate_key(
+                models=user_req.allowed_models,  # 전달받은 모델 리스트 사용
+                user_id=user_req.user_id,
+                metadata={"organization": user_req.organization},
+            )
+
+            user = User(
+                user_id=user_req.user_id,
+                organization=user_req.organization,
+                key_value=key_value,
+                extra_info=user_req.extra_info,
+            )
+            db.add(user)
+            created_users.append(user)
+
+            # 사용자 모델 권한 설정
+            for model_name in user_req.allowed_models:
+                allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
+                db.add(allowed_model)
+
+        except Exception as e:
+            # 키 생성 실패 시 롤백
+            await db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"사용자 {user_req.user_id}의 키 생성에 실패했습니다: {str(e)}",
+            )
 
     await db.commit()
 
@@ -280,20 +273,29 @@ async def create_user(
         await db.refresh(user)
 
     # 응답 형식으로 변환
-    return [
-        {
-            "id": user.id,
-            "user_id": user.user_id,
-            "organization": user.organization,
-            "key_value": user.key_value,
-            "extra_info": user.extra_info,
-            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
-            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
-            "allowed_models": [],
-            "allowed_services": [],
-        }
-        for user in created_users
-    ]
+    result_users = []
+    for user in created_users:
+        # 생성된 사용자의 allowed_models 조회
+        models_result = await db.execute(
+            select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
+        )
+        allowed_models = [row[0] for row in models_result.fetchall()]
+
+        result_users.append(
+            {
+                "id": user.id,
+                "user_id": user.user_id,
+                "organization": user.organization,
+                "key_value": user.key_value,
+                "extra_info": user.extra_info,
+                "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+                "allowed_models": allowed_models,
+                "allowed_services": [],
+            }
+        )
+
+    return result_users
 
 
 def verify_server_api_key(x_api_key: str = Header(None)):
@@ -379,6 +381,16 @@ async def update_user(
                 allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
                 db.add(allowed_model)
 
+            # LiteLLM 키의 모델 권한 업데이트
+            try:
+                litellm_service = LiteLLMService()
+                await litellm_service.update_key_models(user.key_value, req.allowed_models)
+            except Exception as e:
+                # LiteLLM 업데이트 실패 시에도 DB는 커밋 (키가 유효하지 않을 수 있음)
+                print(
+                    f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
+                )
+
         # updated_at 필드 업데이트
         user.updated_at = datetime.utcnow()
 
@@ -445,6 +457,9 @@ async def batch_update_users(
 
         updated_users = []
 
+        # LiteLLM 서비스 초기화
+        litellm_service = LiteLLMService()
+
         for user in users:
             # allowed_models 업데이트
             if req.allowed_models is not None:
@@ -455,6 +470,15 @@ async def batch_update_users(
                 for model_name in req.allowed_models:
                     allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
                     db.add(allowed_model)
+
+                # LiteLLM 키의 모델 권한 업데이트
+                try:
+                    await litellm_service.update_key_models(user.key_value, req.allowed_models)
+                except Exception as e:
+                    # LiteLLM 업데이트 실패 시에도 DB는 커밋 (키가 유효하지 않을 수 있음)
+                    print(
+                        f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
+                    )
 
             # updated_at 필드 업데이트
             user.updated_at = datetime.utcnow()
@@ -534,10 +558,20 @@ async def batch_delete_users(
                 detail=f"Users not found: {missing_user_ids}",
             )
 
-        # 관련 데이터 삭제 (AllowedModel, AllowedService)
+        # LiteLLM 서비스 초기화
+        litellm_service = LiteLLMService()
+
+        # 관련 데이터 삭제 (AllowedModel, AllowedService) 및 LiteLLM 키 삭제
         for user in users:
             await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
             await db.execute(delete(AllowedService).where(AllowedService.user_id == user.id))
+
+            # LiteLLM에서 키 삭제
+            try:
+                await litellm_service.delete_key(user.key_value)
+            except Exception as e:
+                # 키 삭제 실패 시에도 계속 진행 (키가 이미 삭제되었을 수 있음)
+                print(f"Warning: Failed to delete LiteLLM key for user {user.user_id}: {str(e)}")
 
         # 사용자 삭제
         await db.execute(delete(User).where(User.user_id.in_(req.user_ids)))

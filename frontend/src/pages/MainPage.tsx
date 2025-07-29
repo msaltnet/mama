@@ -472,6 +472,7 @@ const MainPage: React.FC = () => {
       user_id: userId,
       organization: form.organization,
       extra_info: form.extra_info,
+      allowed_models: selectedModels,
     }));
   };
 

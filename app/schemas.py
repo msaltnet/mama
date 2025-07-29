@@ -34,6 +34,7 @@ class UserCreateRequest(BaseModel):
     user_id: str
     organization: str | None = None
     extra_info: str | None = None
+    allowed_models: list[str] = []
 
 
 class UserUpdateRequest(BaseModel):
