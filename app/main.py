@@ -22,6 +22,7 @@ from .schemas import (
     UserUpdateRequest,
     UsersCreateListRequest,
     UsersBatchUpdateRequest,
+    UsersDeleteRequest,
     UserRead,
     KeyRequest,
     KeyResponse,
@@ -502,4 +503,51 @@ async def batch_update_users(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to batch update users: {str(e)}",
+        )
+
+
+@app.delete("/users/batch")
+async def batch_delete_users(
+    req: UsersDeleteRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """복수의 사용자를 배치로 삭제합니다."""
+    try:
+        if not req.user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one user ID is required",
+            )
+
+        # 사용자 존재 여부 확인
+        result = await db.execute(select(User).where(User.user_id.in_(req.user_ids)))
+        users = result.scalars().all()
+
+        if len(users) != len(req.user_ids):
+            found_user_ids = {user.user_id for user in users}
+            missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Users not found: {missing_user_ids}",
+            )
+
+        # 관련 데이터 삭제 (AllowedModel, AllowedService)
+        for user in users:
+            await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
+            await db.execute(delete(AllowedService).where(AllowedService.user_id == user.id))
+
+        # 사용자 삭제
+        await db.execute(delete(User).where(User.user_id.in_(req.user_ids)))
+
+        await db.commit()
+
+        return {"message": f"Successfully deleted {len(req.user_ids)} users", "deleted_user_ids": req.user_ids}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete users: {str(e)}",
         )

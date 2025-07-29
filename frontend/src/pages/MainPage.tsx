@@ -28,8 +28,9 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { DEBUG } from "../config";
-import { fetchJson } from "../utils/api";
+import { fetchJson, deleteUsers } from "../utils/api";
 import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
 import type { User } from "../types/user";
 
@@ -98,6 +99,10 @@ const MainPage: React.FC = () => {
     string[]
   >([]);
   const [batchUpdating, setBatchUpdating] = useState(false);
+
+  // 삭제 다이얼로그 관련 상태
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // 체크박스 선택 관련 상태
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -544,12 +549,12 @@ const MainPage: React.FC = () => {
           users.map((user) =>
             user.user_id === editingUser.user_id
               ? {
-                  ...user,
-                  organization: editForm.organization,
-                  extra_info: editForm.extra_info,
-                  allowed_models: editSelectedModels,
-                  updated_at: new Date().toISOString(),
-                }
+                ...user,
+                organization: editForm.organization,
+                extra_info: editForm.extra_info,
+                allowed_models: editSelectedModels,
+                updated_at: new Date().toISOString(),
+              }
               : user,
           ),
         );
@@ -711,6 +716,46 @@ const MainPage: React.FC = () => {
     }
   };
 
+  // 삭제 다이얼로그 열기
+  const handleDeleteDialogOpen = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  // 삭제 다이얼로그 닫기
+  const handleDeleteDialogClose = () => {
+    setDeleteDialogOpen(false);
+  };
+
+  // 사용자 삭제 실행
+  const handleDeleteUsers = async () => {
+    if (selectedUserIds.length === 0) {
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      if (DEBUG) {
+        // DEBUG 모드에서는 로컬 상태만 업데이트
+        setUsers(users.filter((user) => !selectedUserIds.includes(user.user_id)));
+        setDeleteDialogOpen(false);
+        setSelectedUserIds([]); // 선택된 사용자들 초기화
+        return;
+      }
+
+      await deleteUsers(selectedUserIds);
+
+      // 삭제된 사용자들을 로컬 상태에서 제거
+      setUsers(users.filter((user) => !selectedUserIds.includes(user.user_id)));
+      setDeleteDialogOpen(false);
+      setSelectedUserIds([]); // 선택된 사용자들 초기화
+    } catch (err: unknown) {
+      console.error("Delete failed:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -752,6 +797,16 @@ const MainPage: React.FC = () => {
           >
             Batch Edit ({selectedUserIds.length})
           </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={handleDeleteDialogOpen}
+            disabled={selectedUserIds.length === 0}
+            sx={{ ml: 2 }}
+          >
+            Delete ({selectedUserIds.length})
+          </Button>
         </Box>
 
         {/* 검색 필드 */}
@@ -787,7 +842,7 @@ const MainPage: React.FC = () => {
                     <Checkbox
                       checked={
                         selectedUserIds.length ===
-                          filteredAndSortedUsers.length &&
+                        filteredAndSortedUsers.length &&
                         filteredAndSortedUsers.length > 0
                       }
                       indeterminate={
@@ -950,7 +1005,7 @@ const MainPage: React.FC = () => {
                       </TableCell>
                       <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {user.allowed_services &&
-                        user.allowed_services.length > 0
+                          user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
@@ -1488,6 +1543,48 @@ const MainPage: React.FC = () => {
               }
             >
               {batchUpdating ? "Updating..." : "Update Selected Users"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 삭제 확인 다이얼로그 */}
+        <Dialog open={deleteDialogOpen} onClose={handleDeleteDialogClose} maxWidth="sm" fullWidth>
+          <DialogTitle>사용자 삭제 확인</DialogTitle>
+          <DialogContent>
+            <Typography>
+              선택된 {selectedUserIds.length}명의 사용자를 삭제하시겠습니까?
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              이 작업은 되돌릴 수 없습니다.
+            </Typography>
+            {selectedUserIds.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  삭제될 사용자:
+                </Typography>
+                <Box sx={{ maxHeight: 200, overflow: "auto" }}>
+                  {users
+                    .filter((user) => selectedUserIds.includes(user.user_id))
+                    .map((user) => (
+                      <Typography key={user.user_id} variant="body2" sx={{ py: 0.5 }}>
+                        • {user.user_id} ({user.organization || "N/A"})
+                      </Typography>
+                    ))}
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteDialogClose} disabled={deleting}>
+              취소
+            </Button>
+            <Button
+              onClick={handleDeleteUsers}
+              variant="contained"
+              color="error"
+              disabled={deleting}
+            >
+              {deleting ? "삭제 중..." : "삭제"}
             </Button>
           </DialogActions>
         </Dialog>

@@ -62,3 +62,12 @@ export const fetchJson = async <T>(
   const response = await authenticatedFetch(url, options);
   return response.json();
 };
+
+// 사용자 삭제 API 함수
+export const deleteUsers = async (userIds: string[]): Promise<{ message: string; deleted_user_ids: string[] }> => {
+  return fetchJson("/users/batch", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+};

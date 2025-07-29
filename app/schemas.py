@@ -51,6 +51,10 @@ class UsersBatchUpdateRequest(BaseModel):
     allowed_models: list[str] = []
 
 
+class UsersDeleteRequest(BaseModel):
+    user_ids: list[str]
+
+
 class KeyRequest(BaseModel):
     user_ids: list[str]
 
