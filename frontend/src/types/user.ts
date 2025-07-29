@@ -7,4 +7,4 @@ export interface User {
   updated_at?: string;
   allowed_models: string[];
   allowed_services: string[];
-} 
+}

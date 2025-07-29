@@ -21,6 +21,7 @@ from .schemas import (
     UserCreateRequest,
     UserUpdateRequest,
     UsersCreateListRequest,
+    UsersBatchUpdateRequest,
     UserRead,
     KeyRequest,
     KeyResponse,
@@ -352,7 +353,7 @@ async def update_user(
         # 사용자 존재 여부 확인
         result = await db.execute(select(User).where(User.user_id == user_id))
         user = result.scalar_one_or_none()
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -369,7 +370,7 @@ async def update_user(
         if req.allowed_models is not None:
             # 기존 allowed_models 삭제
             await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
-            
+
             # 새로운 allowed_models 추가
             for model_name in req.allowed_models:
                 allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
@@ -386,7 +387,7 @@ async def update_user(
             select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
         )
         allowed_models = [row[0] for row in models_result.fetchall()]
-        
+
         services_result = await db.execute(
             select(AllowedService.service_name).where(AllowedService.user_id == user.id)
         )
@@ -410,4 +411,95 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update user: {str(e)}",
+        )
+
+
+@app.put("/users/batch", response_model=List[UserRead])
+async def batch_update_users(
+    req: UsersBatchUpdateRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """복수의 사용자 모델 정보를 배치로 수정합니다."""
+    try:
+        if not req.user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one user ID is required",
+            )
+
+        # 사용자 존재 여부 확인
+        result = await db.execute(select(User).where(User.user_id.in_(req.user_ids)))
+        users = result.scalars().all()
+
+        if len(users) != len(req.user_ids):
+            found_user_ids = {user.user_id for user in users}
+            missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Users not found: {missing_user_ids}",
+            )
+
+        updated_users = []
+
+        for user in users:
+            # allowed_models 업데이트
+            if req.allowed_models is not None:
+                # 기존 allowed_models 삭제
+                await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
+
+                # 새로운 allowed_models 추가
+                for model_name in req.allowed_models:
+                    allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
+                    db.add(allowed_model)
+
+            # updated_at 필드 업데이트
+            user.updated_at = datetime.utcnow()
+
+            updated_users.append(user)
+
+        await db.commit()
+
+        # 업데이트된 사용자들의 정보를 반환
+        result_users = []
+        for user in updated_users:
+            await db.refresh(user)
+
+            # 업데이트된 allowed_models와 allowed_services 조회
+            models_result = await db.execute(
+                select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
+            )
+            allowed_models = [row[0] for row in models_result.fetchall()]
+
+            services_result = await db.execute(
+                select(AllowedService.service_name).where(AllowedService.user_id == user.id)
+            )
+            allowed_services = [row[0] for row in services_result.fetchall()]
+
+            result_users.append(
+                {
+                    "id": user.id,
+                    "user_id": user.user_id,
+                    "organization": user.organization,
+                    "key_value": user.key_value,
+                    "extra_info": user.extra_info,
+                    "created_at": (
+                        user.created_at.isoformat() if user.created_at is not None else None
+                    ),
+                    "updated_at": (
+                        user.updated_at.isoformat() if user.updated_at is not None else None
+                    ),
+                    "allowed_models": allowed_models,
+                    "allowed_services": allowed_services,
+                }
+            )
+
+        return result_users
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to batch update users: {str(e)}",
         )

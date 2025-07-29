@@ -22,10 +22,12 @@ import {
   Divider,
   TableSortLabel,
   InputAdornment,
+  Checkbox,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { DEBUG } from "../config";
 import { fetchJson } from "../utils/api";
 import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
@@ -38,7 +40,7 @@ interface AvailableModel {
   owned_by: string;
 }
 
-type Order = 'asc' | 'desc';
+type Order = "asc" | "desc";
 
 interface SortConfig {
   key: keyof User;
@@ -69,8 +71,8 @@ const MainPage: React.FC = () => {
 
   // 정렬 관련 상태
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    key: 'user_id',
-    direction: 'asc'
+    key: "user_id",
+    direction: "asc",
   });
 
   // 검색 관련 상태
@@ -87,6 +89,18 @@ const MainPage: React.FC = () => {
   const [editFormError, setEditFormError] = useState("");
   const [updating, setUpdating] = useState(false);
 
+  // 일괄 수정 다이얼로그 관련 상태
+  const [batchEditDialogOpen, setBatchEditDialogOpen] = useState(false);
+  const [batchEditSelectedUsers, setBatchEditSelectedUsers] = useState<User[]>(
+    [],
+  );
+  const [batchEditSelectedModels, setBatchEditSelectedModels] = useState<
+    string[]
+  >([]);
+  const [batchUpdating, setBatchUpdating] = useState(false);
+
+  // 체크박스 선택 관련 상태
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   // 사용 가능한 모델 정보를 불러오는 함수
   const fetchAvailableModels = async () => {
@@ -210,16 +224,66 @@ const MainPage: React.FC = () => {
           const mockUsers = generateMockUsers();
           setUsers(mockUsers);
           setAvailableModels([
-            { id: "gpt-4", object: "model", created: 1640995200, owned_by: "openai" },
-            { id: "gpt-3.5-turbo", object: "model", created: 1640995200, owned_by: "openai" },
-            { id: "claude-3-opus", object: "model", created: 1640995200, owned_by: "anthropic" },
-            { id: "claude-3-sonnet", object: "model", created: 1640995200, owned_by: "anthropic" },
-            { id: "claude-3-haiku", object: "model", created: 1640995200, owned_by: "anthropic" },
-            { id: "gemini-pro", object: "model", created: 1640995200, owned_by: "google" },
-            { id: "llama-2-70b", object: "model", created: 1640995200, owned_by: "meta" },
-            { id: "llama-2-13b", object: "model", created: 1640995200, owned_by: "meta" },
-            { id: "llama-2-7b", object: "model", created: 1640995200, owned_by: "meta" },
-            { id: "mistral-7b", object: "model", created: 1640995200, owned_by: "mistral" },
+            {
+              id: "gpt-4",
+              object: "model",
+              created: 1640995200,
+              owned_by: "openai",
+            },
+            {
+              id: "gpt-3.5-turbo",
+              object: "model",
+              created: 1640995200,
+              owned_by: "openai",
+            },
+            {
+              id: "claude-3-opus",
+              object: "model",
+              created: 1640995200,
+              owned_by: "anthropic",
+            },
+            {
+              id: "claude-3-sonnet",
+              object: "model",
+              created: 1640995200,
+              owned_by: "anthropic",
+            },
+            {
+              id: "claude-3-haiku",
+              object: "model",
+              created: 1640995200,
+              owned_by: "anthropic",
+            },
+            {
+              id: "gemini-pro",
+              object: "model",
+              created: 1640995200,
+              owned_by: "google",
+            },
+            {
+              id: "llama-2-70b",
+              object: "model",
+              created: 1640995200,
+              owned_by: "meta",
+            },
+            {
+              id: "llama-2-13b",
+              object: "model",
+              created: 1640995200,
+              owned_by: "meta",
+            },
+            {
+              id: "llama-2-7b",
+              object: "model",
+              created: 1640995200,
+              owned_by: "meta",
+            },
+            {
+              id: "mistral-7b",
+              object: "model",
+              created: 1640995200,
+              owned_by: "mistral",
+            },
           ]);
           setError("");
         } else {
@@ -248,7 +312,6 @@ const MainPage: React.FC = () => {
 
     fetchData();
   }, [token, username]);
-
 
   // 모델이 사용 가능한지 확인하는 함수
   const isModelAvailable = (modelId: string) => {
@@ -304,6 +367,7 @@ const MainPage: React.FC = () => {
     setFormError("");
     setUserIds([]);
     setDialogOpen(true);
+    setSelectedUserIds([]); // 선택된 사용자들 초기화
     // 다이얼로그가 열릴 때 사용 가능한 모델 정보를 불러옴
     fetchAvailableModels();
   };
@@ -335,7 +399,10 @@ const MainPage: React.FC = () => {
   const handleSort = (key: keyof User) => {
     setSortConfig((prevConfig) => ({
       key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+      direction:
+        prevConfig.key === key && prevConfig.direction === "asc"
+          ? "desc"
+          : "asc",
     }));
   };
 
@@ -346,8 +413,8 @@ const MainPage: React.FC = () => {
       if (!searchTerm.trim()) return true;
 
       const searchLower = searchTerm.toLowerCase();
-      const userId = user.user_id?.toLowerCase() || '';
-      const organization = user.organization?.toLowerCase() || '';
+      const userId = user.user_id?.toLowerCase() || "";
+      const organization = user.organization?.toLowerCase() || "";
 
       return userId.includes(searchLower) || organization.includes(searchLower);
     });
@@ -364,30 +431,35 @@ const MainPage: React.FC = () => {
 
       // 배열 타입 처리 (allowed_models, allowed_services)
       if (Array.isArray(aValue) && Array.isArray(bValue)) {
-        const aStr = aValue.join(', ');
-        const bStr = bValue.join(', ');
-        return sortConfig.direction === 'asc'
+        const aStr = aValue.join(", ");
+        const bStr = bValue.join(", ");
+        return sortConfig.direction === "asc"
           ? aStr.localeCompare(bStr)
           : bStr.localeCompare(aStr);
       }
 
       // 문자열 타입 처리
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortConfig.direction === 'asc'
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        return sortConfig.direction === "asc"
           ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue);
       }
 
       // 기본 비교
-      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
 
     return sorted;
   }, [users, searchTerm, sortConfig]);
   const createMockUsers = (): User[] => {
-    return generateMockUsersFromIds(userIds, form.organization, form.extra_info, selectedModels);
+    return generateMockUsersFromIds(
+      userIds,
+      form.organization,
+      form.extra_info,
+      selectedModels,
+    );
   };
 
   const createUserRequests = () => {
@@ -440,6 +512,7 @@ const MainPage: React.FC = () => {
     setEditSelectedModels([...user.allowed_models]);
     setEditFormError("");
     setEditDialogOpen(true);
+    setSelectedUserIds([]); // 선택된 사용자들 초기화
   };
 
   // 사용자 수정 다이얼로그 닫기
@@ -467,39 +540,174 @@ const MainPage: React.FC = () => {
     try {
       if (DEBUG) {
         // DEBUG 모드에서는 로컬 상태만 업데이트
-        setUsers(users.map(user =>
-          user.user_id === editingUser.user_id
-            ? {
-              ...user,
-              organization: editForm.organization,
-              extra_info: editForm.extra_info,
-              allowed_models: editSelectedModels,
-              updated_at: new Date().toISOString()
-            }
-            : user
-        ));
+        setUsers(
+          users.map((user) =>
+            user.user_id === editingUser.user_id
+              ? {
+                  ...user,
+                  organization: editForm.organization,
+                  extra_info: editForm.extra_info,
+                  allowed_models: editSelectedModels,
+                  updated_at: new Date().toISOString(),
+                }
+              : user,
+          ),
+        );
         setEditDialogOpen(false);
         return;
       }
 
-      const updatedUser = await fetchJson<User>(`/users/${editingUser.user_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organization: editForm.organization,
-          extra_info: editForm.extra_info,
-          allowed_models: editSelectedModels,
-        }),
-      });
+      const updatedUser = await fetchJson<User>(
+        `/users/${editingUser.user_id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organization: editForm.organization,
+            extra_info: editForm.extra_info,
+            allowed_models: editSelectedModels,
+          }),
+        },
+      );
 
-      setUsers(users.map(user =>
-        user.user_id === editingUser.user_id ? updatedUser : user
-      ));
+      setUsers(
+        users.map((user) =>
+          user.user_id === editingUser.user_id ? updatedUser : user,
+        ),
+      );
       setEditDialogOpen(false);
     } catch (err: unknown) {
       setEditFormError(err instanceof Error ? err.message : String(err));
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // 체크박스 선택 핸들러
+  const handleUserSelection = (userId: string) => {
+    setSelectedUserIds((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  // 전체 선택/해제 핸들러
+  const handleSelectAll = () => {
+    if (selectedUserIds.length === filteredAndSortedUsers.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(filteredAndSortedUsers.map((user) => user.user_id));
+    }
+  };
+
+  // 일괄 수정 다이얼로그 열기
+  const handleBatchEditDialogOpen = () => {
+    const selectedUsers = users.filter((user) =>
+      selectedUserIds.includes(user.user_id),
+    );
+    setBatchEditSelectedUsers(selectedUsers);
+    setBatchEditSelectedModels([]);
+    setBatchEditDialogOpen(true);
+  };
+
+  // 일괄 수정 다이얼로그 닫기
+  const handleBatchEditDialogClose = () => {
+    setBatchEditDialogOpen(false);
+    setBatchEditSelectedUsers([]);
+    setBatchEditSelectedModels([]);
+    setSelectedUserIds([]); // 선택된 사용자들도 초기화
+  };
+
+  // 일괄 수정 모델 선택 상태 변경 핸들러
+  const handleBatchEditModelSelectionChange = (modelId: string) => {
+    setBatchEditSelectedModels((prev) => {
+      // all-team-models가 선택된 경우
+      if (modelId === "all-team-models") {
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 이미 선택되어 있으면 해제
+          return prev.filter((id) => id !== "all-team-models");
+        } else {
+          // all-team-models를 선택하면 다른 모든 모델 해제
+          return ["all-team-models"];
+        }
+      } else {
+        // 일반 모델 선택/해제
+        if (prev.includes("all-team-models")) {
+          // all-team-models가 선택되어 있으면 해제하고 현재 모델만 선택
+          return [modelId];
+        } else {
+          // 일반적인 모델 선택/해제 로직
+          if (prev.includes(modelId)) {
+            return prev.filter((id) => id !== modelId);
+          } else {
+            return [...prev, modelId];
+          }
+        }
+      }
+    });
+  };
+
+  // 일괄 수정 사용자 정보 업데이트
+  const handleBatchUpdateUsers = async () => {
+    if (
+      batchEditSelectedUsers.length === 0 ||
+      batchEditSelectedModels.length === 0
+    ) {
+      return;
+    }
+
+    setBatchUpdating(true);
+
+    try {
+      if (DEBUG) {
+        // DEBUG 모드에서는 로컬 상태만 업데이트
+        setUsers(
+          users.map((user) => {
+            if (
+              batchEditSelectedUsers.some(
+                (selectedUser) => selectedUser.user_id === user.user_id,
+              )
+            ) {
+              return {
+                ...user,
+                allowed_models: batchEditSelectedModels,
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return user;
+          }),
+        );
+        setBatchEditDialogOpen(false);
+        setSelectedUserIds([]); // 선택된 사용자들 초기화
+        return;
+      }
+
+      const updatedUsers = await fetchJson<User[]>("/users/batch", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_ids: batchEditSelectedUsers.map((user) => user.user_id),
+          allowed_models: batchEditSelectedModels,
+        }),
+      });
+
+      setUsers(
+        users.map((user) => {
+          const updatedUser = updatedUsers.find(
+            (u) => u.user_id === user.user_id,
+          );
+          return updatedUser || user;
+        }),
+      );
+      setBatchEditDialogOpen(false);
+      setSelectedUserIds([]); // 선택된 사용자들 초기화
+    } catch (err: unknown) {
+      console.error("Batch update failed:", err);
+    } finally {
+      setBatchUpdating(false);
     }
   };
 
@@ -535,6 +743,15 @@ const MainPage: React.FC = () => {
           >
             Create User
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<SettingsIcon />}
+            onClick={handleBatchEditDialogOpen}
+            disabled={selectedUserIds.length === 0}
+            sx={{ ml: 2 }}
+          >
+            Batch Edit ({selectedUserIds.length})
+          </Button>
         </Box>
 
         {/* 검색 필드 */}
@@ -566,74 +783,120 @@ const MainPage: React.FC = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={
+                        selectedUserIds.length ===
+                          filteredAndSortedUsers.length &&
+                        filteredAndSortedUsers.length > 0
+                      }
+                      indeterminate={
+                        selectedUserIds.length > 0 &&
+                        selectedUserIds.length < filteredAndSortedUsers.length
+                      }
+                      onChange={handleSelectAll}
+                    />
+                  </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'user_id'}
-                      direction={sortConfig.key === 'user_id' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('user_id')}
+                      active={sortConfig.key === "user_id"}
+                      direction={
+                        sortConfig.key === "user_id"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("user_id")}
                     >
                       User ID
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'organization'}
-                      direction={sortConfig.key === 'organization' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('organization')}
+                      active={sortConfig.key === "organization"}
+                      direction={
+                        sortConfig.key === "organization"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("organization")}
                     >
                       Organization
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'key_value'}
-                      direction={sortConfig.key === 'key_value' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('key_value')}
+                      active={sortConfig.key === "key_value"}
+                      direction={
+                        sortConfig.key === "key_value"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("key_value")}
                     >
                       Key Value
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'extra_info'}
-                      direction={sortConfig.key === 'extra_info' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('extra_info')}
+                      active={sortConfig.key === "extra_info"}
+                      direction={
+                        sortConfig.key === "extra_info"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("extra_info")}
                     >
                       Extra Info
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'allowed_models'}
-                      direction={sortConfig.key === 'allowed_models' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('allowed_models')}
+                      active={sortConfig.key === "allowed_models"}
+                      direction={
+                        sortConfig.key === "allowed_models"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("allowed_models")}
                     >
                       Models
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'allowed_services'}
-                      direction={sortConfig.key === 'allowed_services' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('allowed_services')}
+                      active={sortConfig.key === "allowed_services"}
+                      direction={
+                        sortConfig.key === "allowed_services"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("allowed_services")}
                     >
                       Services
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'created_at'}
-                      direction={sortConfig.key === 'created_at' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('created_at')}
+                      active={sortConfig.key === "created_at"}
+                      direction={
+                        sortConfig.key === "created_at"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("created_at")}
                     >
                       Created At
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>
                     <TableSortLabel
-                      active={sortConfig.key === 'updated_at'}
-                      direction={sortConfig.key === 'updated_at' ? sortConfig.direction : 'asc'}
-                      onClick={() => handleSort('updated_at')}
+                      active={sortConfig.key === "updated_at"}
+                      direction={
+                        sortConfig.key === "updated_at"
+                          ? sortConfig.direction
+                          : "asc"
+                      }
+                      onClick={() => handleSort("updated_at")}
                     >
                       Updated At
                     </TableSortLabel>
@@ -643,39 +906,58 @@ const MainPage: React.FC = () => {
               <TableBody>
                 {filteredAndSortedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      {searchTerm.trim() ? "검색 결과가 없습니다." : "No user information available."}
+                    <TableCell colSpan={9} align="center">
+                      {searchTerm.trim()
+                        ? "검색 결과가 없습니다."
+                        : "No user information available."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredAndSortedUsers.map((user) => (
                     <TableRow
                       key={user.user_id}
-                      onClick={() => handleEditDialogOpen(user)}
                       sx={{
-                        cursor: 'pointer',
-                        '&:hover': {
-                          backgroundColor: 'action.hover',
-                        }
+                        cursor: "pointer",
+                        "&:hover": {
+                          backgroundColor: "action.hover",
+                        },
                       }}
                     >
-                      <TableCell>{user.user_id}</TableCell>
-                      <TableCell>{user.organization || "-"}</TableCell>
-                      <TableCell>{user.key_value}</TableCell>
-                      <TableCell>{user.extra_info || "-"}</TableCell>
-                      <TableCell>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={selectedUserIds.includes(user.user_id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleUserSelection(user.user_id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
+                        {user.user_id}
+                      </TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
+                        {user.organization || "-"}
+                      </TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
+                        {user.key_value}
+                      </TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
+                        {user.extra_info || "-"}
+                      </TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {renderModelChips(user.allowed_models)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {user.allowed_services &&
-                          user.allowed_services.length > 0
+                        user.allowed_services.length > 0
                           ? user.allowed_services.join(", ")
                           : "-"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {user.created_at ? user.created_at.split("T")[0] : "-"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => handleEditDialogOpen(user)}>
                         {user.updated_at ? user.updated_at.split("T")[0] : "-"}
                       </TableCell>
                     </TableRow>
@@ -752,7 +1034,9 @@ const MainPage: React.FC = () => {
                     configuration.
                   </Alert>
                 ) : (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                  <Box
+                    sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}
+                  >
                     {/* all-team-models 옵션 */}
                     <Chip
                       label="all-team-models"
@@ -767,11 +1051,13 @@ const MainPage: React.FC = () => {
                           ? "filled"
                           : "outlined"
                       }
-                      onClick={() => handleModelSelectionChange("all-team-models")}
+                      onClick={() =>
+                        handleModelSelectionChange("all-team-models")
+                      }
                       sx={{
                         cursor: "pointer",
                         fontWeight: "bold",
-                        borderWidth: 2
+                        borderWidth: 2,
                       }}
                     />
 
@@ -810,15 +1096,25 @@ const MainPage: React.FC = () => {
                     >
                       Selected Models:
                     </Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                    <Box
+                      sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}
+                    >
                       {selectedModels.map((modelId) => (
                         <Chip
                           key={modelId}
                           label={modelId}
-                          color={modelId === "all-team-models" ? "secondary" : "primary"}
+                          color={
+                            modelId === "all-team-models"
+                              ? "secondary"
+                              : "primary"
+                          }
                           size="small"
                           onDelete={() => handleModelSelectionChange(modelId)}
-                          sx={modelId === "all-team-models" ? { fontWeight: "bold" } : {}}
+                          sx={
+                            modelId === "all-team-models"
+                              ? { fontWeight: "bold" }
+                              : {}
+                          }
                         />
                       ))}
                     </Box>
@@ -863,7 +1159,7 @@ const MainPage: React.FC = () => {
           fullWidth
         >
           <DialogTitle sx={{ pb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <EditIcon />
               Edit User: {editingUser?.user_id}
             </Box>
@@ -906,7 +1202,9 @@ const MainPage: React.FC = () => {
                     configuration.
                   </Alert>
                 ) : (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                  <Box
+                    sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}
+                  >
                     {/* all-team-models 옵션 */}
                     <Chip
                       label="all-team-models"
@@ -921,11 +1219,13 @@ const MainPage: React.FC = () => {
                           ? "filled"
                           : "outlined"
                       }
-                      onClick={() => handleEditModelSelectionChange("all-team-models")}
+                      onClick={() =>
+                        handleEditModelSelectionChange("all-team-models")
+                      }
                       sx={{
                         cursor: "pointer",
                         fontWeight: "bold",
-                        borderWidth: 2
+                        borderWidth: 2,
                       }}
                     />
 
@@ -964,15 +1264,27 @@ const MainPage: React.FC = () => {
                     >
                       Selected Models:
                     </Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                    <Box
+                      sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}
+                    >
                       {editSelectedModels.map((modelId) => (
                         <Chip
                           key={modelId}
                           label={modelId}
-                          color={modelId === "all-team-models" ? "secondary" : "primary"}
+                          color={
+                            modelId === "all-team-models"
+                              ? "secondary"
+                              : "primary"
+                          }
                           size="small"
-                          onDelete={() => handleEditModelSelectionChange(modelId)}
-                          sx={modelId === "all-team-models" ? { fontWeight: "bold" } : {}}
+                          onDelete={() =>
+                            handleEditModelSelectionChange(modelId)
+                          }
+                          sx={
+                            modelId === "all-team-models"
+                              ? { fontWeight: "bold" }
+                              : {}
+                          }
                         />
                       ))}
                     </Box>
@@ -1003,6 +1315,179 @@ const MainPage: React.FC = () => {
               disabled={updating || editSelectedModels.length === 0}
             >
               {updating ? "Updating..." : "Update User"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 일괄 수정 다이얼로그 */}
+        <Dialog
+          open={batchEditDialogOpen}
+          onClose={handleBatchEditDialogClose}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle sx={{ p: 2 }}>
+            Batch Edit Users ({batchEditSelectedUsers.length} selected)
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3, pb: 3 }}>
+            <Stack spacing={3}>
+              <Box>
+                <Typography
+                  variant="subtitle2"
+                  color="text.secondary"
+                  gutterBottom
+                >
+                  Selected Users:
+                </Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 1,
+                    maxHeight: 100,
+                    overflow: "auto",
+                  }}
+                >
+                  {batchEditSelectedUsers.map((user) => (
+                    <Chip
+                      key={user.user_id}
+                      label={user.user_id}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+              </Box>
+              <Divider />
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontStyle: "italic" }}
+              >
+                Note: This will replace the existing model information for all
+                selected users.
+              </Typography>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="h6" gutterBottom>
+                Available Models
+              </Typography>
+              {loadingModels ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : availableModels.length === 0 ? (
+                <Alert severity="warning">
+                  No available models found. Please check your LiteLLM
+                  configuration.
+                </Alert>
+              ) : (
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}>
+                  {/* all-team-models 옵션 */}
+                  <Chip
+                    label="all-team-models"
+                    size="small"
+                    color={
+                      batchEditSelectedModels.includes("all-team-models")
+                        ? "secondary"
+                        : "default"
+                    }
+                    variant={
+                      batchEditSelectedModels.includes("all-team-models")
+                        ? "filled"
+                        : "outlined"
+                    }
+                    onClick={() =>
+                      handleBatchEditModelSelectionChange("all-team-models")
+                    }
+                    sx={{
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      borderWidth: 2,
+                    }}
+                  />
+
+                  {/* 구분선 */}
+                  <Divider orientation="vertical" flexItem />
+
+                  {/* 일반 모델들 */}
+                  {availableModels.map((model) => (
+                    <Chip
+                      key={model.id}
+                      label={model.id}
+                      size="small"
+                      color={
+                        batchEditSelectedModels.includes(model.id)
+                          ? "primary"
+                          : "default"
+                      }
+                      variant={
+                        batchEditSelectedModels.includes(model.id)
+                          ? "filled"
+                          : "outlined"
+                      }
+                      onClick={() =>
+                        handleBatchEditModelSelectionChange(model.id)
+                      }
+                      sx={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </Box>
+              )}
+
+              {batchEditSelectedModels.length > 0 && (
+                <Box sx={{ mt: 2, py: 1 }}>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
+                    Selected Models:
+                  </Typography>
+                  <Box
+                    sx={{ display: "flex", flexWrap: "wrap", gap: 1, py: 1 }}
+                  >
+                    {batchEditSelectedModels.map((modelId) => (
+                      <Chip
+                        key={modelId}
+                        label={modelId}
+                        color={
+                          modelId === "all-team-models"
+                            ? "secondary"
+                            : "primary"
+                        }
+                        size="small"
+                        onDelete={() =>
+                          handleBatchEditModelSelectionChange(modelId)
+                        }
+                        sx={
+                          modelId === "all-team-models"
+                            ? { fontWeight: "bold" }
+                            : {}
+                        }
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={handleBatchEditDialogClose}
+              disabled={batchUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBatchUpdateUsers}
+              variant="contained"
+              disabled={
+                batchUpdating ||
+                batchEditSelectedUsers.length === 0 ||
+                batchEditSelectedModels.length === 0
+              }
+            >
+              {batchUpdating ? "Updating..." : "Update Selected Users"}
             </Button>
           </DialogActions>
         </Dialog>

@@ -46,6 +46,11 @@ class UsersCreateListRequest(BaseModel):
     users: list[UserCreateRequest]
 
 
+class UsersBatchUpdateRequest(BaseModel):
+    user_ids: list[str]
+    allowed_models: list[str] = []
+
+
 class KeyRequest(BaseModel):
     user_ids: list[str]
 
