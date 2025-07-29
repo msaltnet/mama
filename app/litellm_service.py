@@ -18,7 +18,9 @@ class LiteLLMService:
         self.max_retries = LITELLM_MAX_RETRIES
         self.retry_delay = LITELLM_RETRY_DELAY
 
-    async def _make_request(self, method: str, url: str, headers: dict, json_data: Optional[dict] = None) -> httpx.Response:
+    async def _make_request(
+        self, method: str, url: str, headers: dict, json_data: Optional[dict] = None
+    ) -> httpx.Response:
         """
         HTTP 요청을 수행하는 공통 메서드
         """

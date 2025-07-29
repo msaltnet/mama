@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, select, delete
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY
@@ -220,7 +220,9 @@ async def list_users(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(User)
+    stmt = select(User).options(
+        selectinload(User.allowed_models), selectinload(User.allowed_services)
+    )
     if organization:
         stmt = stmt.where(User.organization == organization)
     result = await db.execute(stmt)
