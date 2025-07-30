@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, select, delete
 from sqlalchemy.orm import Session, sessionmaker, selectinload
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY
+from .config import DB_URL, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET_KEY, SERVER_API_KEY, LITELLM_USER_ID
 from .models import Admin, Base, User, AllowedModel, AllowedService
 from .schemas import (
     AdminCreateRequest,
@@ -240,7 +240,7 @@ async def create_user(
             # 프론트엔드에서 전달받은 모델 리스트 사용
             key_value = await litellm_service.generate_key(
                 models=user_req.allowed_models,  # 전달받은 모델 리스트 사용
-                user_id=user_req.user_id,
+                user_id=LITELLM_USER_ID,  # 환경변수에서 가져온 LiteLLM 사용자 ID
                 metadata={"organization": user_req.organization},
             )
 

@@ -19,3 +19,6 @@ JWT_EXPIRE_MINUTES = 60
 
 # Server API Key
 SERVER_API_KEY = os.getenv("SERVER_API_KEY", "your_serve_api_key")
+
+# LiteLLM 설정
+LITELLM_USER_ID = os.getenv("LITELLM_USER_ID", "mama_litellm_user")
