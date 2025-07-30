@@ -11,6 +11,10 @@ RUN npm ci
 # Copy frontend source code
 COPY frontend/ .
 
+# Build frontend with environment variables
+ARG ISSUE_REPORT_URL=https://github.com/msaltnet/mama/issues
+ENV ISSUE_REPORT_URL=$ISSUE_REPORT_URL
+
 # Build frontend
 RUN npm run build
 

@@ -14,6 +14,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        ISSUE_REPORT_URL: ${ISSUE_REPORT_URL:-https://github.com/your-username/mama/issues}
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST:-db}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -22,7 +24,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your_jwt_secret_key_here}
       SERVER_API_KEY: ${SERVER_API_KEY:-your_server_api_key_here}
-      ISSUE_REPORT_URL: ${ISSUE_REPORT_URL:-https://github.com/your-username/mama/issues}
       # LiteLLM 설정
       LITELLM_URL: ${LITELLM_URL:-http://host.docker.internal:4444}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-4444}
