@@ -29,8 +29,9 @@ services:
       LITELLM_TIMEOUT: ${LITELLM_TIMEOUT:-10}
       LITELLM_MAX_RETRIES: ${LITELLM_MAX_RETRIES:-3}
       LITELLM_RETRY_DELAY: ${LITELLM_RETRY_DELAY:-1.0}
+      LITELLM_USER_ID: ${LITELLM_USER_ID:-mama_user}
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     depends_on:
       - db
     # If needed
