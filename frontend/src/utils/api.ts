@@ -4,7 +4,7 @@ import { DEBUG } from "../config";
 const handleAuthError = () => {
   localStorage.removeItem("access_token");
   localStorage.removeItem("username");
-  window.location.href = "/login";
+  window.location.href = "/#/login";
 };
 
 // 공통 API 에러 처리 함수
