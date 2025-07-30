@@ -1,5 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "fs";
+
+// package.json에서 버전 정보 읽기
+const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,7 +18,7 @@ export default defineConfig({
   define: {
     // 빌드 시 환경변수 설정
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-    __APP_VERSION__: JSON.stringify("1.0.0"), // package.json 버전과 동일하게 설정
+    __APP_VERSION__: JSON.stringify(packageJson.version), // package.json 버전을 동적으로 읽어옴
     __ISSUE_REPORT_URL__: JSON.stringify(
       process.env.ISSUE_REPORT_URL || "https://github.com/msaltnet/mama/issues",
     ), // 환경변수로 설정 가능

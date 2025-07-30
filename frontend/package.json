@@ -1,13 +1,14 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev-mode": "cross-env VITE_DEBUG=true vite",
     "build": "npx tsc -b && npx vite build",
     "build:custom": "cross-env ISSUE_REPORT_URL=https://github.com/your-username/mama/issues npx tsc -b && npx vite build",
+    "build:version": "node -e \"const pkg=require('./package.json'); console.log('Building version:', pkg.version);\" && npx tsc -b && npx vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
