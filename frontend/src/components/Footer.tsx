@@ -3,16 +3,17 @@ import { Box, Typography, Link, Container } from "@mui/material";
 import { BugReport } from "@mui/icons-material";
 
 const Footer: React.FC = () => {
-  // 빌드 시간을 가져오기 위한 환경변수 (Vite에서 제공)
+  // Vite define에서 설정한 전역 상수들 (빌드 시점에 치환됨)
   const buildTime =
-    ((globalThis as Record<string, unknown>).__BUILD_TIME__ as string) ||
-    new Date().toISOString();
+    typeof __BUILD_TIME__ !== "undefined"
+      ? __BUILD_TIME__
+      : new Date().toISOString();
   const version =
-    ((globalThis as Record<string, unknown>).__APP_VERSION__ as string) ||
-    "0.0.0";
+    typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.0.0";
   const issueReportUrl =
-    ((globalThis as Record<string, unknown>).__ISSUE_REPORT_URL__ as string) ||
-    "https://github.com/your-username/mama/issues";
+    typeof __ISSUE_REPORT_URL__ !== "undefined"
+      ? __ISSUE_REPORT_URL__
+      : "https://github.com/your-username/mama/issues";
 
   return (
     <Box

@@ -4,7 +4,9 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 // package.json에서 버전 정보 읽기
-const packageJson = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, "package.json"), "utf-8"),
+);
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,8 +15,8 @@ export default defineConfig({
   server: {
     // SPA 라우팅을 위한 설정
     fs: {
-      allow: ['..']
-    }
+      allow: [".."],
+    },
   },
   define: {
     // 빌드 시 환경변수 설정
