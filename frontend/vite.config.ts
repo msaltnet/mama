@@ -5,6 +5,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "/static/", // 정적 파일 경로를 /static/으로 설정
+  server: {
+    // SPA 라우팅을 위한 설정
+    fs: {
+      allow: ['..']
+    }
+  },
   define: {
     // 빌드 시 환경변수 설정
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
