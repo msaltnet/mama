@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 
 class PasswordChangeRequest(BaseModel):
@@ -63,3 +65,27 @@ class KeyRequest(BaseModel):
 class KeyResponse(BaseModel):
     user_id: str
     user_key: str
+
+
+class EventLogRead(BaseModel):
+    id: int
+    admin_id: int
+    admin_username: str
+    user_id: Optional[int] = None
+    user_user_id: Optional[str] = None
+    event_type: str
+    event_detail: Optional[str] = None
+    result: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class EventLogFilter(BaseModel):
+    admin_username: Optional[str] = None
+    user_id: Optional[int] = None
+    event_type: Optional[str] = None
+    result: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None

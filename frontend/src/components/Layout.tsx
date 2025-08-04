@@ -6,11 +6,13 @@ import {
   Box,
   IconButton,
   Tooltip,
+  Button,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import LoginIcon from "@mui/icons-material/Login";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SettingsIcon from "@mui/icons-material/Settings";
+import HistoryIcon from "@mui/icons-material/History";
 import Footer from "./Footer";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -38,6 +40,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     } else {
       navigate("/login");
     }
+  };
+
+  const handleEventLogs = () => {
+    navigate("/event-logs");
   };
 
   return (
@@ -82,6 +88,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <Typography variant="body1" sx={{ ml: 2 }}>
                   {username}
                 </Typography>
+                <Tooltip title="Event Logs">
+                  <IconButton
+                    color="inherit"
+                    sx={{ ml: 1 }}
+                    onClick={handleEventLogs}
+                  >
+                    <HistoryIcon />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title="Account Settings">
                   <IconButton
                     color="inherit"

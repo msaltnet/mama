@@ -9,6 +9,7 @@ import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CreateAdminPage from "./pages/CreateAdminPage";
 import AccountSettingsPage from "./pages/AccountSettingsPage";
 import MainPage from "./pages/MainPage";
+import EventLogsPage from "./pages/EventLogsPage";
 import type { ReactElement } from "react";
 import { CssBaseline } from "@mui/material";
 import Layout from "./components/Layout";
@@ -74,6 +75,14 @@ function App() {
             element={
               <PrivateRoute>
                 <AccountSettingsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/event-logs"
+            element={
+              <PrivateRoute>
+                <EventLogsPage />
               </PrivateRoute>
             }
           />
