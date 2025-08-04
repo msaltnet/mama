@@ -6,7 +6,6 @@ import {
   Box,
   IconButton,
   Tooltip,
-  Button,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import LoginIcon from "@mui/icons-material/Login";

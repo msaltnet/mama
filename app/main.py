@@ -135,7 +135,7 @@ async def log_event(
     event_type: str,
     event_detail: Optional[str] = None,
     user_id: Optional[int] = None,
-    result: str = "SUCCESS"
+    result: str = "SUCCESS",
 ):
     """이벤트 로그를 생성합니다."""
     event_log = EventLog(
@@ -143,7 +143,7 @@ async def log_event(
         user_id=user_id,
         event_type=event_type,
         event_detail=event_detail,
-        result=result
+        result=result,
     )
     db.add(event_log)
     await db.commit()
@@ -152,8 +152,8 @@ async def log_event(
 @app.post("/login")
 async def login(
     request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(), 
-    db: AsyncSession = Depends(get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
         result = await db.execute(select(Admin).where(Admin.username == form_data.username))
@@ -165,19 +165,19 @@ async def login(
                 admin_id=0,  # 알 수 없는 관리자
                 event_type="LOGIN",
                 event_detail=f"Failed login attempt for username: {form_data.username}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(status_code=400, detail="Incorrect username or password")
-        
+
         # 로그인 성공 로그
         await log_event(
             db=db,
             admin_id=admin.id,
             event_type="LOGIN",
             event_detail=f"Successful login for admin: {admin.username}",
-            result="SUCCESS"
+            result="SUCCESS",
         )
-        
+
         access_token = create_access_token(
             data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
         )
@@ -191,7 +191,7 @@ async def login(
             admin_id=0,
             event_type="LOGIN",
             event_detail=f"Unexpected error during login: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise
 
@@ -212,21 +212,21 @@ async def change_password(
                 admin_id=current_admin.id,
                 event_type="PASSWORD_CHANGE",
                 event_detail="Failed password change - incorrect current password",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(status_code=400, detail="Current password does not match.")
-        
+
         admin.set_password(req.new_password)
         await db.commit()
-        
+
         await log_event(
             db=db,
             admin_id=current_admin.id,
             event_type="PASSWORD_CHANGE",
             event_detail="Password changed successfully",
-            result="SUCCESS"
+            result="SUCCESS",
         )
-        
+
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     except HTTPException:
         raise
@@ -236,7 +236,7 @@ async def change_password(
             admin_id=current_admin.id,
             event_type="PASSWORD_CHANGE",
             event_detail=f"Unexpected error during password change: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise
 
@@ -256,23 +256,23 @@ async def create_admin(
                 admin_id=current_admin.id,
                 event_type="ADMIN_CREATE",
                 event_detail=f"Failed to create admin - username already exists: {req.username}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(status_code=400, detail="Admin username already exists.")
-        
+
         new_admin = Admin(username=req.username, is_super_admin=False)
         new_admin.set_password(req.password)
         db.add(new_admin)
         await db.commit()
-        
+
         await log_event(
             db=db,
             admin_id=current_admin.id,
             event_type="ADMIN_CREATE",
             event_detail=f"Admin account created: {req.username}",
-            result="SUCCESS"
+            result="SUCCESS",
         )
-        
+
         return {"msg": f"관리자 계정({req.username})이 성공적으로 생성되었습니다."}
     except HTTPException:
         raise
@@ -282,7 +282,7 @@ async def create_admin(
             admin_id=current_admin.id,
             event_type="ADMIN_CREATE",
             event_detail=f"Unexpected error during admin creation: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise
 
@@ -352,10 +352,11 @@ async def create_user(
                 admin_id=current_admin.id,
                 event_type="USER_CREATE",
                 event_detail=f"Failed to create users - duplicates found: {existing_user_ids}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
-                status_code=400, detail=f"이미 존재하는 사용자 ID입니다: {', '.join(existing_user_ids)}"
+                status_code=400,
+                detail=f"이미 존재하는 사용자 ID입니다: {', '.join(existing_user_ids)}",
             )
 
         # LiteLLM 서비스 초기화
@@ -391,7 +392,7 @@ async def create_user(
                     admin_id=current_admin.id,
                     event_type="USER_CREATE",
                     event_detail=f"Failed to create user {user_req.user_id}: {str(e)}",
-                    result="FAILURE"
+                    result="FAILURE",
                 )
                 raise HTTPException(
                     status_code=500,
@@ -404,7 +405,9 @@ async def create_user(
         # 생성된 사용자들의 ID를 조회하고 모델 권한 설정
         for data in created_users_data:
             # 사용자 ID를 조회하여 가져옴
-            result = await db.execute(select(User.id).where(User.user_id == data["user_req"].user_id))
+            result = await db.execute(
+                select(User.id).where(User.user_id == data["user_req"].user_id)
+            )
             user_id = result.scalar_one()
 
             # 사용자 모델 권한 설정 (ID가 생성된 후)
@@ -422,7 +425,7 @@ async def create_user(
             admin_id=current_admin.id,
             event_type="USER_CREATE",
             event_detail=f"Users created successfully: {created_user_ids}",
-            result="SUCCESS"
+            result="SUCCESS",
         )
 
         # 응답 형식으로 변환
@@ -469,7 +472,7 @@ async def create_user(
             admin_id=current_admin.id,
             event_type="USER_CREATE",
             event_detail=f"Unexpected error during user creation: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise
 
@@ -542,7 +545,7 @@ async def update_user(
                 admin_id=current_admin.id,
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to update user - user not found: {user_id}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -599,7 +602,7 @@ async def update_user(
             event_type="USER_UPDATE",
             event_detail=f"User updated successfully: {user_id}",
             user_id=user.id,
-            result="SUCCESS"
+            result="SUCCESS",
         )
 
         return {
@@ -622,7 +625,7 @@ async def update_user(
             admin_id=current_admin.id,
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during user update: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -645,7 +648,7 @@ async def batch_update_users(
                 admin_id=current_admin.id,
                 event_type="USER_UPDATE",
                 event_detail="Failed to batch update users - no user IDs provided",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -664,7 +667,7 @@ async def batch_update_users(
                 admin_id=current_admin.id,
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to batch update users - users not found: {missing_user_ids}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -709,7 +712,7 @@ async def batch_update_users(
             admin_id=current_admin.id,
             event_type="USER_UPDATE",
             event_detail=f"Batch update completed successfully for users: {req.user_ids}",
-            result="SUCCESS"
+            result="SUCCESS",
         )
 
         # 업데이트된 사용자들의 정보를 반환
@@ -756,7 +759,7 @@ async def batch_update_users(
             admin_id=current_admin.id,
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during batch user update: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -779,7 +782,7 @@ async def batch_delete_users(
                 admin_id=current_admin.id,
                 event_type="USER_DELETE",
                 event_detail="Failed to delete users - no user IDs provided",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -798,7 +801,7 @@ async def batch_delete_users(
                 admin_id=current_admin.id,
                 event_type="USER_DELETE",
                 event_detail=f"Failed to delete users - users not found: {missing_user_ids}",
-                result="FAILURE"
+                result="FAILURE",
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -831,7 +834,7 @@ async def batch_delete_users(
             admin_id=current_admin.id,
             event_type="USER_DELETE",
             event_detail=f"Users deleted successfully: {req.user_ids}",
-            result="SUCCESS"
+            result="SUCCESS",
         )
 
         return {
@@ -847,7 +850,7 @@ async def batch_delete_users(
             admin_id=current_admin.id,
             event_type="USER_DELETE",
             event_detail=f"Unexpected error during user deletion: {str(e)}",
-            result="FAILURE"
+            result="FAILURE",
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -871,11 +874,8 @@ async def get_event_logs(
     """이벤트 로그를 조회합니다."""
     try:
         # 기본 쿼리
-        stmt = select(EventLog).options(
-            selectinload(EventLog.admin),
-            selectinload(EventLog.user)
-        )
-        
+        stmt = select(EventLog).options(selectinload(EventLog.admin), selectinload(EventLog.user))
+
         # 필터 조건 추가
         if admin_username is not None:
             stmt = stmt.join(Admin).where(Admin.username == admin_username)
@@ -889,31 +889,33 @@ async def get_event_logs(
             stmt = stmt.where(EventLog.created_at >= start_date)
         if end_date is not None:
             stmt = stmt.where(EventLog.created_at <= end_date)
-        
+
         # 정렬 (최신순)
         stmt = stmt.order_by(EventLog.created_at.desc())
-        
+
         # 페이징
         stmt = stmt.limit(limit).offset(offset)
-        
+
         result = await db.execute(stmt)
         event_logs = result.scalars().all()
-        
+
         # 응답 형식으로 변환
         out = []
         for log in event_logs:
-            out.append({
-                "id": log.id,
-                "admin_id": log.admin_id,
-                "admin_username": log.admin.username if log.admin else "Unknown",
-                "user_id": log.user_id,
-                "user_user_id": log.user.user_id if log.user else None,
-                "event_type": log.event_type,
-                "event_detail": log.event_detail,
-                "result": log.result,
-                "created_at": log.created_at,
-            })
-        
+            out.append(
+                {
+                    "id": log.id,
+                    "admin_id": log.admin_id,
+                    "admin_username": log.admin.username if log.admin else "Unknown",
+                    "user_id": log.user_id,
+                    "user_user_id": log.user.user_id if log.user else None,
+                    "event_type": log.event_type,
+                    "event_detail": log.event_detail,
+                    "result": log.result,
+                    "created_at": log.created_at,
+                }
+            )
+
         return out
     except Exception as e:
         raise HTTPException(
