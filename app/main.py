@@ -131,7 +131,7 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
 
 async def log_event(
     db: AsyncSession,
-    admin_id: int,
+    admin_id: Optional[int],
     event_type: str,
     event_detail: Optional[str] = None,
     user_id: Optional[int] = None,
@@ -159,14 +159,7 @@ async def login(
         result = await db.execute(select(Admin).where(Admin.username == form_data.username))
         admin = result.scalars().first()
         if not admin or not admin.verify_password(form_data.password):
-            # 로그인 실패 로그
-            await log_event(
-                db=db,
-                admin_id=0,  # 알 수 없는 관리자
-                event_type="LOGIN",
-                event_detail=f"Failed login attempt for username: {form_data.username}",
-                result="FAILURE",
-            )
+            # 로그인 실패 시에는 이벤트 로그를 생성하지 않음 (보안상 알 수 없는 사용자의 시도는 기록하지 않음)
             raise HTTPException(status_code=400, detail="Incorrect username or password")
 
         # 로그인 성공 로그
@@ -185,10 +178,10 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        # 예상치 못한 오류 로그
+        # 예상치 못한 오류 로그 - admin_id를 None으로 설정
         await log_event(
             db=db,
-            admin_id=0,
+            admin_id=None,  # None으로 설정하여 외래키 제약 조건 위반 방지
             event_type="LOGIN",
             event_detail=f"Unexpected error during login: {str(e)}",
             result="FAILURE",
@@ -906,7 +899,7 @@ async def get_event_logs(
                 {
                     "id": log.id,
                     "admin_id": log.admin_id,
-                    "admin_username": log.admin.username if log.admin else "Unknown",
+                    "admin_username": log.admin.username if log.admin else "System",
                     "user_id": log.user_id,
                     "user_user_id": log.user.user_id if log.user else None,
                     "event_type": log.event_type,
