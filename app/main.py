@@ -138,15 +138,20 @@ async def log_event(
     result: str = "SUCCESS",
 ):
     """이벤트 로그를 생성합니다."""
-    event_log = EventLog(
-        admin_id=admin_id,
-        user_id=user_id,
-        event_type=event_type,
-        event_detail=event_detail,
-        result=result,
-    )
-    db.add(event_log)
-    await db.commit()
+    try:
+        event_log = EventLog(
+            admin_id=admin_id,
+            user_id=user_id,
+            event_type=event_type,
+            event_detail=event_detail,
+            result=result,
+        )
+        db.add(event_log)
+        await db.commit()
+    except Exception as e:
+        # 로그 생성 실패 시에도 메인 로직은 계속 진행
+        print(f"Failed to create event log: {str(e)}")
+        await db.rollback()
 
 
 @app.post("/login")
@@ -161,16 +166,20 @@ async def login(
         if not admin or not admin.verify_password(form_data.password):
             # 로그인 실패 시에는 이벤트 로그를 생성하지 않음 (보안상 알 수 없는 사용자의 시도는 기록하지 않음)
             raise HTTPException(status_code=400, detail="Incorrect username or password")
-
+        
         # 로그인 성공 로그
-        await log_event(
-            db=db,
-            admin_id=admin.id,
-            event_type="LOGIN",
-            event_detail=f"Successful login for admin: {admin.username}",
-            result="SUCCESS",
-        )
-
+        try:
+            await log_event(
+                db=db,
+                admin_id=admin.id,
+                event_type="LOGIN",
+                event_detail=f"Successful login for admin: {admin.username}",
+                result="SUCCESS",
+            )
+        except Exception as log_error:
+            # 로그 생성 실패 시에도 로그인은 성공으로 처리
+            print(f"Failed to create login event log: {str(log_error)}")
+        
         access_token = create_access_token(
             data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
         )
@@ -179,13 +188,17 @@ async def login(
         raise
     except Exception as e:
         # 예상치 못한 오류 로그 - admin_id를 None으로 설정
-        await log_event(
-            db=db,
-            admin_id=None,  # None으로 설정하여 외래키 제약 조건 위반 방지
-            event_type="LOGIN",
-            event_detail=f"Unexpected error during login: {str(e)}",
-            result="FAILURE",
-        )
+        try:
+            await log_event(
+                db=db,
+                admin_id=None,  # None으로 설정하여 외래키 제약 조건 위반 방지
+                event_type="LOGIN",
+                event_detail=f"Unexpected error during login: {str(e)}",
+                result="FAILURE",
+            )
+        except Exception as log_error:
+            # 로그 생성 실패 시에도 원래 예외를 다시 발생시킴
+            print(f"Failed to create error event log: {str(log_error)}")
         raise
 
 
@@ -211,26 +224,33 @@ async def change_password(
 
         admin.set_password(req.new_password)
         await db.commit()
-
-        await log_event(
-            db=db,
-            admin_id=current_admin.id,
-            event_type="PASSWORD_CHANGE",
-            event_detail="Password changed successfully",
-            result="SUCCESS",
-        )
-
+        
+        # 성공 로그 기록
+        try:
+            await log_event(
+                db=db,
+                admin_id=current_admin.id,
+                event_type="PASSWORD_CHANGE",
+                event_detail="Password changed successfully",
+                result="SUCCESS",
+            )
+        except Exception as log_error:
+            print(f"Failed to create password change event log: {str(log_error)}")
+        
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     except HTTPException:
         raise
     except Exception as e:
-        await log_event(
-            db=db,
-            admin_id=current_admin.id,
-            event_type="PASSWORD_CHANGE",
-            event_detail=f"Unexpected error during password change: {str(e)}",
-            result="FAILURE",
-        )
+        try:
+            await log_event(
+                db=db,
+                admin_id=current_admin.id,
+                event_type="PASSWORD_CHANGE",
+                event_detail=f"Unexpected error during password change: {str(e)}",
+                result="FAILURE",
+            )
+        except Exception as log_error:
+            print(f"Failed to create password change error event log: {str(log_error)}")
         raise
 
 
