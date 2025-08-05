@@ -6,7 +6,7 @@ from typing import List, Optional, Union
 import bcrypt
 import jwt
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, status, Body, Header, Request
+from fastapi import Depends, FastAPI, HTTPException, status, Body, Header, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -74,8 +74,21 @@ app = FastAPI(lifespan=lifespan)
 # 정적 파일(프론트엔드 빌드 결과) 서빙 경로를 '/static'으로 변경
 app.mount("/static", StaticFiles(directory="./frontend/dist", html=True), name="static")
 
+# 동기 데이터베이스 설정 (백그라운드 로그용)
+sync_engine = create_engine(DB_URL)
+SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
+
+# 비동기 데이터베이스 설정
 ASYNC_DB_URL = DB_URL.replace("postgresql+psycopg2", "postgresql+asyncpg")
-engine = create_async_engine(ASYNC_DB_URL, echo=True)
+engine = create_async_engine(
+    ASYNC_DB_URL,
+    echo=True,
+    pool_size=10,  # 기본 연결 풀 크기
+    max_overflow=20,  # 최대 오버플로우 연결 수
+    pool_timeout=30,  # 연결 대기 시간 (초)
+    pool_recycle=3600,  # 연결 재사용 시간 (1시간)
+    pool_pre_ping=True,  # 연결 유효성 검사
+)
 SessionLocal = async_sessionmaker(
     autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
 )
@@ -134,38 +147,51 @@ def superuser_required(current_admin: Admin = Depends(get_current_admin)):
         raise HTTPException(status_code=403, detail="Super admin privileges required.")
 
 
-async def log_event(
-    db: AsyncSession,
-    admin_id: Optional[Union[int, Admin]],
+def log_event_sync(
+    admin_id: Optional[int],
     event_type: str,
     event_detail: Optional[str] = None,
     user_id: Optional[int] = None,
     result: str = "SUCCESS",
 ):
-    """이벤트 로그를 생성합니다."""
+    """(동기) 별도 트랜잭션으로 이벤트 로그를 생성합니다."""
+    db = None
     try:
+        db = SyncSessionLocal()  # 동기 세션 생성
+        
         # admin_id가 Admin 객체인 경우 ID를 추출
-        if hasattr(admin_id, "id"):
-            admin_id = admin_id.id
+        # 비동기 세션에서 생성된 객체는 동기 세션에서 사용할 수 없으므로
+        # 객체의 ID를 미리 추출하거나 None으로 처리
+        actual_admin_id = None
+        if admin_id is not None:
+            if hasattr(admin_id, "id"):
+                actual_admin_id = admin_id.id
+            elif isinstance(admin_id, int):
+                actual_admin_id = admin_id
 
         event_log = EventLog(
-            admin_id=admin_id,
+            admin_id=actual_admin_id,
             user_id=user_id,
             event_type=event_type,
             event_detail=event_detail,
             result=result,
         )
         db.add(event_log)
-        await db.commit()
+        db.commit()
     except Exception as e:
-        # 로그 생성 실패 시에도 메인 로직은 계속 진행
-        print(f"Failed to create event log: {str(e)}")
-        await db.rollback()
+        print(f"Failed to create event log: {admin_id}, {event_type}, {e}")
+    finally:
+        if db:
+            db.close()  # 세션 닫기
+
+
+
 
 
 @app.post("/login")
 async def login(
     request: Request,
+    background_tasks: BackgroundTasks,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
@@ -180,18 +206,14 @@ async def login(
         admin_username = admin.username
         is_super_admin = admin.is_super_admin
 
-        # 로그인 성공 로그
-        try:
-            await log_event(
-                db=db,
-                admin_id=admin.id,
-                event_type="LOGIN",
-                event_detail=f"Successful login for admin: {admin_username}",
-                result="SUCCESS",
-            )
-        except Exception as log_error:
-            # 로그 생성 실패 시에도 로그인은 성공으로 처리
-            print(f"Failed to create login event log: {str(log_error)}")
+        # 로그인 성공 로그 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin.id,  # 이미 ID 값만 전달
+            event_type="LOGIN",
+            event_detail=f"Successful login for admin: {admin_username}",
+            result="SUCCESS",
+        )
 
         access_token = create_access_token(
             data={"sub": admin_username, "is_super_admin": is_super_admin}
@@ -200,35 +222,35 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        # 예상치 못한 오류 로그 - admin_id를 None으로 설정
-        try:
-            await log_event(
-                db=db,
-                admin_id=None,  # None으로 설정하여 외래키 제약 조건 위반 방지
-                event_type="LOGIN",
-                event_detail=f"Unexpected error during login: {str(e)}",
-                result="FAILURE",
-            )
-        except Exception as log_error:
-            # 로그 생성 실패 시에도 원래 예외를 다시 발생시킴
-            print(f"Failed to create error event log: {str(log_error)}")
+        # 예상치 못한 오류 로그 - admin_id를 None으로 설정 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=None,  # None으로 설정하여 외래키 제약 조건 위반 방지
+            event_type="LOGIN",
+            event_detail=f"Unexpected error during login: {str(e)}",
+            result="FAILURE",
+        )
         raise
 
 
 @app.post("/change-password")
 async def change_password(
     request: Request,
+    background_tasks: BackgroundTasks,
     req: PasswordChangeRequest,
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         result = await db.execute(select(Admin).where(Admin.id == current_admin.id))
         admin = result.scalars().first()
         if not admin or not admin.verify_password(req.old_password):
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="PASSWORD_CHANGE",
                 event_detail="Failed password change - incorrect current password",
                 result="FAILURE",
@@ -238,48 +260,46 @@ async def change_password(
         admin.set_password(req.new_password)
         await db.commit()
 
-        # 성공 로그 기록
-        try:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
-                event_type="PASSWORD_CHANGE",
-                event_detail="Password changed successfully",
-                result="SUCCESS",
-            )
-        except Exception as log_error:
-            print(f"Failed to create password change event log: {str(log_error)}")
+        # 성공 로그 기록 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
+            event_type="PASSWORD_CHANGE",
+            event_detail="Password changed successfully",
+            result="SUCCESS",
+        )
 
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     except HTTPException:
         raise
     except Exception as e:
-        try:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
-                event_type="PASSWORD_CHANGE",
-                event_detail=f"Unexpected error during password change: {str(e)}",
-                result="FAILURE",
-            )
-        except Exception as log_error:
-            print(f"Failed to create password change error event log: {str(log_error)}")
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
+            event_type="PASSWORD_CHANGE",
+            event_detail=f"Unexpected error during password change: {str(e)}",
+            result="FAILURE",
+        )
         raise
 
 
 @app.post("/create-admin")
 async def create_admin(
     request: Request,
+    background_tasks: BackgroundTasks,
     req: AdminCreateRequest,
     current_admin: Admin = Depends(superuser_required),
     db: AsyncSession = Depends(get_db),
 ):
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         result = await db.execute(select(Admin).where(Admin.username == req.username))
         if result.scalars().first():
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="ADMIN_CREATE",
                 event_detail=f"Failed to create admin - username already exists: {req.username}",
                 result="FAILURE",
@@ -291,9 +311,9 @@ async def create_admin(
         db.add(new_admin)
         await db.commit()
 
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="ADMIN_CREATE",
             event_detail=f"Admin account created: {req.username}",
             result="SUCCESS",
@@ -303,9 +323,9 @@ async def create_admin(
     except HTTPException:
         raise
     except Exception as e:
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="ADMIN_CREATE",
             event_detail=f"Unexpected error during admin creation: {str(e)}",
             result="FAILURE",
@@ -326,6 +346,20 @@ async def serve_spa():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/health/db")
+async def db_health_check():
+    """데이터베이스 연결 풀 상태 확인"""
+    pool = engine.pool
+    return {
+        "status": "healthy",
+        "pool_size": pool.size(),
+        "checked_in": pool.checkedin(),
+        "checked_out": pool.checkedout(),
+        "overflow": pool.overflow(),
+        "invalid": pool.invalid(),
+    }
 
 
 @app.get("/users", response_model=List[UserRead])
@@ -362,20 +396,24 @@ async def list_users(
 @app.post("/users", response_model=List[UserRead])
 async def create_user(
     request: Request,
+    background_tasks: BackgroundTasks,
     req: UsersCreateListRequest,
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         # 중복 검사
         user_ids = [user.user_id for user in req.users]
         existing_users = await db.execute(select(User).where(User.user_id.in_(user_ids)))
         existing_user_ids = [user.user_id for user in existing_users.scalars().all()]
 
         if existing_user_ids:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_CREATE",
                 event_detail=f"Failed to create users - duplicates found: {existing_user_ids}",
                 result="FAILURE",
@@ -413,9 +451,9 @@ async def create_user(
             except Exception as e:
                 # 생성 실패에 대한 롤백
                 await db.rollback()
-                await log_event(
-                    db=db,
-                    admin_id=current_admin,
+                background_tasks.add_task(
+                    log_event_sync,
+                    admin_id=admin_id,  # 미리 추출한 ID 사용
                     event_type="USER_CREATE",
                     event_detail=f"Failed to create user {user_req.user_id}: {str(e)}",
                     result="FAILURE",
@@ -444,11 +482,11 @@ async def create_user(
         # 모델 권한 커밋
         await db.commit()
 
-        # 성공 로그 기록
+        # 성공 로그 기록 (백그라운드에서 처리)
         created_user_ids = [data["user_req"].user_id for data in created_users_data]
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_CREATE",
             event_detail=f"Users created successfully: {created_user_ids}",
             result="SUCCESS",
@@ -493,9 +531,9 @@ async def create_user(
     except HTTPException:
         raise
     except Exception as e:
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_CREATE",
             event_detail=f"Unexpected error during user creation: {str(e)}",
             result="FAILURE",
@@ -554,6 +592,7 @@ async def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
 @app.put("/users/{user_id}", response_model=UserRead)
 async def update_user(
     request: Request,
+    background_tasks: BackgroundTasks,
     user_id: str,
     req: UserUpdateRequest,
     current_admin: Admin = Depends(get_current_admin),
@@ -561,14 +600,17 @@ async def update_user(
 ):
     """사용자 정보 수정"""
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         # 사용자 존재 여부 확인
         result = await db.execute(select(User).where(User.user_id == user_id))
         user = result.scalar_one_or_none()
 
         if not user:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to update user - user not found: {user_id}",
                 result="FAILURE",
@@ -621,10 +663,10 @@ async def update_user(
         )
         allowed_services = [row[0] for row in services_result.fetchall()]
 
-        # 성공 로그 기록
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        # 성공 로그 기록 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_UPDATE",
             event_detail=f"User updated successfully: {user_id}",
             user_id=user.id,
@@ -646,9 +688,9 @@ async def update_user(
         raise
     except Exception as e:
         await db.rollback()
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during user update: {str(e)}",
             result="FAILURE",
@@ -662,16 +704,20 @@ async def update_user(
 @app.put("/users/batch", response_model=List[UserRead])
 async def batch_update_users(
     request: Request,
+    background_tasks: BackgroundTasks,
     req: UsersBatchUpdateRequest,
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """복수 사용자 모델 권한 배치 수정"""
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         if not req.user_ids:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_UPDATE",
                 event_detail="Failed to batch update users - no user IDs provided",
                 result="FAILURE",
@@ -688,9 +734,9 @@ async def batch_update_users(
         if len(users) != len(req.user_ids):
             found_user_ids = {user.user_id for user in users}
             missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to batch update users - users not found: {missing_user_ids}",
                 result="FAILURE",
@@ -732,10 +778,10 @@ async def batch_update_users(
 
         await db.commit()
 
-        # 성공 로그 기록
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        # 성공 로그 기록 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_UPDATE",
             event_detail=f"Batch update completed successfully for users: {req.user_ids}",
             result="SUCCESS",
@@ -780,9 +826,9 @@ async def batch_update_users(
         raise
     except Exception as e:
         await db.rollback()
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during batch user update: {str(e)}",
             result="FAILURE",
@@ -796,16 +842,20 @@ async def batch_update_users(
 @app.delete("/users/batch")
 async def batch_delete_users(
     request: Request,
+    background_tasks: BackgroundTasks,
     req: UsersDeleteRequest,
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """복수 사용자 배치 삭제"""
     try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+        
         if not req.user_ids:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_DELETE",
                 event_detail="Failed to delete users - no user IDs provided",
                 result="FAILURE",
@@ -822,9 +872,9 @@ async def batch_delete_users(
         if len(users) != len(req.user_ids):
             found_user_ids = {user.user_id for user in users}
             missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
-            await log_event(
-                db=db,
-                admin_id=current_admin,
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
                 event_type="USER_DELETE",
                 event_detail=f"Failed to delete users - users not found: {missing_user_ids}",
                 result="FAILURE",
@@ -854,10 +904,10 @@ async def batch_delete_users(
 
         await db.commit()
 
-        # 성공 로그 기록
-        await log_event(
-            db=db,
-            admin_id=current_admin,
+        # 성공 로그 기록 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
             event_type="USER_DELETE",
             event_detail=f"Users deleted successfully: {req.user_ids}",
             result="SUCCESS",
@@ -871,16 +921,13 @@ async def batch_delete_users(
         raise
     except Exception as e:
         await db.rollback()
-        try:
-            await log_event(
-                db=db,
-                admin_id=current_admin,
-                event_type="USER_DELETE",
-                event_detail=f"Unexpected error during user deletion: {str(e)}",
-                result="FAILURE",
-            )
-        except Exception as log_error:
-            print(f"Failed to create error event log: {str(log_error)}")
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
+            event_type="USER_DELETE",
+            event_detail=f"Unexpected error during user deletion: {str(e)}",
+            result="FAILURE",
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete users: {str(e)}",
