@@ -69,7 +69,7 @@ class KeyResponse(BaseModel):
 
 class EventLogRead(BaseModel):
     id: int
-    admin_id: int
+    admin_id: Optional[int] = None
     admin_username: str
     user_id: Optional[int] = None
     user_user_id: Optional[str] = None

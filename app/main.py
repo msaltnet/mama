@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import bcrypt
 import jwt
@@ -124,14 +124,19 @@ async def get_current_admin(
 
 
 def superuser_required(current_admin: Admin = Depends(get_current_admin)):
-    if not bool(current_admin.is_super_admin):
+    try:
+        is_super_admin = current_admin.is_super_admin
+        if not bool(is_super_admin):
+            raise HTTPException(status_code=403, detail="Super admin privileges required.")
+        return current_admin
+    except Exception as e:
+        # admin 객체 접근 실패 시에도 권한 없음으로 처리
         raise HTTPException(status_code=403, detail="Super admin privileges required.")
-    return current_admin
 
 
 async def log_event(
     db: AsyncSession,
-    admin_id: Optional[int],
+    admin_id: Optional[Union[int, Admin]],
     event_type: str,
     event_detail: Optional[str] = None,
     user_id: Optional[int] = None,
@@ -139,6 +144,10 @@ async def log_event(
 ):
     """이벤트 로그를 생성합니다."""
     try:
+        # admin_id가 Admin 객체인 경우 ID를 추출
+        if hasattr(admin_id, "id"):
+            admin_id = admin_id.id
+
         event_log = EventLog(
             admin_id=admin_id,
             user_id=user_id,
@@ -166,22 +175,26 @@ async def login(
         if not admin or not admin.verify_password(form_data.password):
             # 로그인 실패 시에는 이벤트 로그를 생성하지 않음 (보안상 알 수 없는 사용자의 시도는 기록하지 않음)
             raise HTTPException(status_code=400, detail="Incorrect username or password")
-        
+
+        # admin 객체의 속성을 미리 로드하여 지연 로딩 문제 방지
+        admin_username = admin.username
+        is_super_admin = admin.is_super_admin
+
         # 로그인 성공 로그
         try:
             await log_event(
                 db=db,
                 admin_id=admin.id,
                 event_type="LOGIN",
-                event_detail=f"Successful login for admin: {admin.username}",
+                event_detail=f"Successful login for admin: {admin_username}",
                 result="SUCCESS",
             )
         except Exception as log_error:
             # 로그 생성 실패 시에도 로그인은 성공으로 처리
             print(f"Failed to create login event log: {str(log_error)}")
-        
+
         access_token = create_access_token(
-            data={"sub": admin.username, "is_super_admin": admin.is_super_admin}
+            data={"sub": admin_username, "is_super_admin": is_super_admin}
         )
         return {"access_token": access_token, "token_type": "bearer"}
     except HTTPException:
@@ -215,7 +228,7 @@ async def change_password(
         if not admin or not admin.verify_password(req.old_password):
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="PASSWORD_CHANGE",
                 event_detail="Failed password change - incorrect current password",
                 result="FAILURE",
@@ -224,19 +237,19 @@ async def change_password(
 
         admin.set_password(req.new_password)
         await db.commit()
-        
+
         # 성공 로그 기록
         try:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="PASSWORD_CHANGE",
                 event_detail="Password changed successfully",
                 result="SUCCESS",
             )
         except Exception as log_error:
             print(f"Failed to create password change event log: {str(log_error)}")
-        
+
         return {"msg": "비밀번호가 성공적으로 변경되었습니다."}
     except HTTPException:
         raise
@@ -244,7 +257,7 @@ async def change_password(
         try:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="PASSWORD_CHANGE",
                 event_detail=f"Unexpected error during password change: {str(e)}",
                 result="FAILURE",
@@ -266,7 +279,7 @@ async def create_admin(
         if result.scalars().first():
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="ADMIN_CREATE",
                 event_detail=f"Failed to create admin - username already exists: {req.username}",
                 result="FAILURE",
@@ -280,7 +293,7 @@ async def create_admin(
 
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="ADMIN_CREATE",
             event_detail=f"Admin account created: {req.username}",
             result="SUCCESS",
@@ -292,7 +305,7 @@ async def create_admin(
     except Exception as e:
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="ADMIN_CREATE",
             event_detail=f"Unexpected error during admin creation: {str(e)}",
             result="FAILURE",
@@ -302,7 +315,7 @@ async def create_admin(
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_spa():
-    """Serve React SPA"""
+    """React SPA 서빙"""
     try:
         with open("frontend/dist/index.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
@@ -362,28 +375,28 @@ async def create_user(
         if existing_user_ids:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_CREATE",
                 event_detail=f"Failed to create users - duplicates found: {existing_user_ids}",
                 result="FAILURE",
             )
             raise HTTPException(
                 status_code=400,
-                detail=f"이미 존재하는 사용자 ID입니다: {', '.join(existing_user_ids)}",
+                detail=f"존재하는 사용자 ID가 있습니다: {', '.join(existing_user_ids)}",
             )
 
-        # LiteLLM 서비스 초기화
+        # LiteLLM 키 초기화
         litellm_service = LiteLLMService()
 
         # 모든 사용자 생성
         created_users_data = []
         for user_req in req.users:
             try:
-                # LiteLLM에서 실제 키 생성
-                # 프론트엔드에서 전달받은 모델 리스트 사용
+                # LiteLLM에서 키 생성
+                # 모델 리스트를 받아옵니다
                 key_value = await litellm_service.generate_key(
-                    models=user_req.allowed_models,  # 전달받은 모델 리스트 사용
-                    user_id=LITELLM_USER_ID,  # 환경변수에서 가져온 LiteLLM 사용자 ID
+                    models=user_req.allowed_models,  # 모델 리스트를 받아옵니다
+                    user_id=LITELLM_USER_ID,  # 환경 변수에서 가져온 LiteLLM 사용자 ID
                     key_alias=user_req.user_id,
                     metadata={"organization": user_req.organization},
                 )
@@ -398,44 +411,44 @@ async def create_user(
                 created_users_data.append({"user": user, "user_req": user_req})
 
             except Exception as e:
-                # 키 생성 실패 시 롤백
+                # 생성 실패에 대한 롤백
                 await db.rollback()
                 await log_event(
                     db=db,
-                    admin_id=current_admin.id,
+                    admin_id=current_admin,
                     event_type="USER_CREATE",
                     event_detail=f"Failed to create user {user_req.user_id}: {str(e)}",
                     result="FAILURE",
                 )
                 raise HTTPException(
                     status_code=500,
-                    detail=f"사용자 {user_req.user_id}의 키 생성에 실패했습니다: {str(e)}",
+                    detail=f"사용자 {user_req.user_id} 생성에 실패했습니다: {str(e)}",
                 )
 
-        # 먼저 사용자들을 커밋하여 ID를 생성
+        # 먼저 사용자들을 커밋하고 ID를 생성합니다
         await db.commit()
 
-        # 생성된 사용자들의 ID를 조회하고 모델 권한 설정
+        # 생성된 사용자들의 ID를 조회하여 모델 권한을 설정합니다
         for data in created_users_data:
-            # 사용자 ID를 조회하여 가져옴
+            # 사용자 ID를 조회합니다
             result = await db.execute(
                 select(User.id).where(User.user_id == data["user_req"].user_id)
             )
             user_id = result.scalar_one()
 
-            # 사용자 모델 권한 설정 (ID가 생성된 후)
+            # 사용자 모델 권한 설정 (ID가 생성됨)
             for model_name in data["user_req"].allowed_models:
                 allowed_model = AllowedModel(user_id=user_id, model_name=model_name)
                 db.add(allowed_model)
 
-        # 모델 권한을 커밋
+        # 모델 권한 커밋
         await db.commit()
 
         # 성공 로그 기록
         created_user_ids = [data["user_req"].user_id for data in created_users_data]
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_CREATE",
             event_detail=f"Users created successfully: {created_user_ids}",
             result="SUCCESS",
@@ -444,11 +457,11 @@ async def create_user(
         # 응답 형식으로 변환
         result_users = []
         for data in created_users_data:
-            # 생성된 사용자 정보를 다시 조회
+            # 생성된 사용자를 조회합니다
             result = await db.execute(select(User).where(User.user_id == data["user_req"].user_id))
             created_user = result.scalar_one()
 
-            # 생성된 사용자의 allowed_models 조회
+            # 생성된 사용자의 allowed_models를 조회합니다
             models_result = await db.execute(
                 select(AllowedModel.model_name).where(AllowedModel.user_id == created_user.id)
             )
@@ -482,7 +495,7 @@ async def create_user(
     except Exception as e:
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_CREATE",
             event_detail=f"Unexpected error during user creation: {str(e)}",
             result="FAILURE",
@@ -527,7 +540,7 @@ async def get_keys(
 @app.get("/models")
 async def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
     """
-    LiteLLM에서 사용 가능한 모델 리스트를 반환하는 API
+    LiteLLM에서 사용 가능한 모델 목록을 반환하는 API
     관리자 인증 필요
     """
     service = LiteLLMService()
@@ -546,7 +559,7 @@ async def update_user(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """사용자 정보를 수정합니다."""
+    """사용자 정보 수정"""
     try:
         # 사용자 존재 여부 확인
         result = await db.execute(select(User).where(User.user_id == user_id))
@@ -555,7 +568,7 @@ async def update_user(
         if not user:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to update user - user not found: {user_id}",
                 result="FAILURE",
@@ -586,18 +599,18 @@ async def update_user(
                 litellm_service = LiteLLMService()
                 await litellm_service.update_key_models(user.key_value, req.allowed_models)
             except Exception as e:
-                # LiteLLM 업데이트 실패 시에도 DB는 커밋 (키가 유효하지 않을 수 있음)
+                # LiteLLM 데이터 업데이트 실패에 대한 DB 커밋 (예외 발생 시 무시)
                 print(
                     f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
                 )
 
-        # updated_at 필드 업데이트
+        # updated_at 업데이트
         user.updated_at = datetime.utcnow()
 
         await db.commit()
         await db.refresh(user)
 
-        # 업데이트된 allowed_models와 allowed_services 조회
+        # 데이터 allowed_models와 allowed_services를 조회합니다
         models_result = await db.execute(
             select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
         )
@@ -611,7 +624,7 @@ async def update_user(
         # 성공 로그 기록
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_UPDATE",
             event_detail=f"User updated successfully: {user_id}",
             user_id=user.id,
@@ -635,7 +648,7 @@ async def update_user(
         await db.rollback()
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during user update: {str(e)}",
             result="FAILURE",
@@ -653,12 +666,12 @@ async def batch_update_users(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """복수의 사용자 모델 정보를 배치로 수정합니다."""
+    """복수 사용자 모델 권한 배치 수정"""
     try:
         if not req.user_ids:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_UPDATE",
                 event_detail="Failed to batch update users - no user IDs provided",
                 result="FAILURE",
@@ -677,7 +690,7 @@ async def batch_update_users(
             missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_UPDATE",
                 event_detail=f"Failed to batch update users - users not found: {missing_user_ids}",
                 result="FAILURE",
@@ -689,7 +702,7 @@ async def batch_update_users(
 
         updated_users = []
 
-        # LiteLLM 서비스 초기화
+        # LiteLLM 키 초기화
         litellm_service = LiteLLMService()
 
         for user in users:
@@ -707,12 +720,12 @@ async def batch_update_users(
                 try:
                     await litellm_service.update_key_models(user.key_value, req.allowed_models)
                 except Exception as e:
-                    # LiteLLM 업데이트 실패 시에도 DB는 커밋 (키가 유효하지 않을 수 있음)
+                    # LiteLLM 데이터 업데이트 실패에 대한 DB 커밋 (예외 발생 시 무시)
                     print(
                         f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
                     )
 
-            # updated_at 필드 업데이트
+            # updated_at 업데이트
             user.updated_at = datetime.utcnow()
 
             updated_users.append(user)
@@ -722,18 +735,18 @@ async def batch_update_users(
         # 성공 로그 기록
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_UPDATE",
             event_detail=f"Batch update completed successfully for users: {req.user_ids}",
             result="SUCCESS",
         )
 
-        # 업데이트된 사용자들의 정보를 반환
+        # 데이터 업데이트된 사용자들을 반환합니다
         result_users = []
         for user in updated_users:
             await db.refresh(user)
 
-            # 업데이트된 allowed_models와 allowed_services 조회
+            # 데이터 allowed_models와 allowed_services를 조회합니다
             models_result = await db.execute(
                 select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
             )
@@ -769,7 +782,7 @@ async def batch_update_users(
         await db.rollback()
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_UPDATE",
             event_detail=f"Unexpected error during batch user update: {str(e)}",
             result="FAILURE",
@@ -787,12 +800,12 @@ async def batch_delete_users(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """복수의 사용자를 배치로 삭제합니다."""
+    """복수 사용자 배치 삭제"""
     try:
         if not req.user_ids:
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_DELETE",
                 event_detail="Failed to delete users - no user IDs provided",
                 result="FAILURE",
@@ -811,7 +824,7 @@ async def batch_delete_users(
             missing_user_ids = [uid for uid in req.user_ids if uid not in found_user_ids]
             await log_event(
                 db=db,
-                admin_id=current_admin.id,
+                admin_id=current_admin,
                 event_type="USER_DELETE",
                 event_detail=f"Failed to delete users - users not found: {missing_user_ids}",
                 result="FAILURE",
@@ -821,10 +834,10 @@ async def batch_delete_users(
                 detail=f"Users not found: {missing_user_ids}",
             )
 
-        # LiteLLM 서비스 초기화
+        # LiteLLM 키 초기화
         litellm_service = LiteLLMService()
 
-        # 관련 데이터 삭제 (AllowedModel, AllowedService) 및 LiteLLM 키 삭제
+        # 관리자 이외의 모든 것 (AllowedModel, AllowedService)을 LiteLLM에 전달
         for user in users:
             await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
             await db.execute(delete(AllowedService).where(AllowedService.user_id == user.id))
@@ -833,7 +846,7 @@ async def batch_delete_users(
             try:
                 await litellm_service.delete_key(user.key_value)
             except Exception as e:
-                # 키 삭제 실패 시에도 계속 진행 (키가 이미 삭제되었을 수 있음)
+                # 키 삭제 실패에 대한 계속 진행 (예외 발생 시 무시)
                 print(f"Warning: Failed to delete LiteLLM key for user {user.user_id}: {str(e)}")
 
         # 사용자 삭제
@@ -844,7 +857,7 @@ async def batch_delete_users(
         # 성공 로그 기록
         await log_event(
             db=db,
-            admin_id=current_admin.id,
+            admin_id=current_admin,
             event_type="USER_DELETE",
             event_detail=f"Users deleted successfully: {req.user_ids}",
             result="SUCCESS",
@@ -858,13 +871,16 @@ async def batch_delete_users(
         raise
     except Exception as e:
         await db.rollback()
-        await log_event(
-            db=db,
-            admin_id=current_admin.id,
-            event_type="USER_DELETE",
-            event_detail=f"Unexpected error during user deletion: {str(e)}",
-            result="FAILURE",
-        )
+        try:
+            await log_event(
+                db=db,
+                admin_id=current_admin,
+                event_type="USER_DELETE",
+                event_detail=f"Unexpected error during user deletion: {str(e)}",
+                result="FAILURE",
+            )
+        except Exception as log_error:
+            print(f"Failed to create error event log: {str(log_error)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete users: {str(e)}",
@@ -884,7 +900,7 @@ async def get_event_logs(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """이벤트 로그를 조회합니다."""
+    """이벤트 로그 조회"""
     try:
         # 기본 쿼리
         stmt = select(EventLog).options(selectinload(EventLog.admin), selectinload(EventLog.user))
@@ -906,7 +922,7 @@ async def get_event_logs(
         # 정렬 (최신순)
         stmt = stmt.order_by(EventLog.created_at.desc())
 
-        # 페이징
+        # 페이지네이션
         stmt = stmt.limit(limit).offset(offset)
 
         result = await db.execute(stmt)
@@ -915,11 +931,22 @@ async def get_event_logs(
         # 응답 형식으로 변환
         out = []
         for log in event_logs:
+            # admin 객체가 None인 경우를 안전하게 처리
+            admin_username = "System"
+            admin_id = None
+            if log.admin:
+                try:
+                    admin_username = log.admin.username
+                    admin_id = log.admin.id
+                except Exception:
+                    admin_username = "System"
+                    admin_id = None
+
             out.append(
                 {
                     "id": log.id,
-                    "admin_id": log.admin_id,
-                    "admin_username": log.admin.username if log.admin else "System",
+                    "admin_id": admin_id,
+                    "admin_username": admin_username,
                     "user_id": log.user_id,
                     "user_user_id": log.user.user_id if log.user else None,
                     "event_type": log.event_type,
