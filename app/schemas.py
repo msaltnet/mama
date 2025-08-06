@@ -69,10 +69,8 @@ class KeyResponse(BaseModel):
 
 class EventLogRead(BaseModel):
     id: int
-    admin_id: Optional[int] = None
-    admin_username: str
-    user_id: Optional[int] = None
-    user_user_id: Optional[str] = None
+    admin_id: Optional[str] = None
+    user_id: Optional[str] = None
     event_type: str
     event_detail: Optional[str] = None
     result: str
@@ -83,8 +81,8 @@ class EventLogRead(BaseModel):
 
 
 class EventLogFilter(BaseModel):
-    admin_username: Optional[str] = None
-    user_id: Optional[int] = None
+    admin_id: Optional[str] = None
+    user_id: Optional[str] = None
     event_type: Optional[str] = None
     result: Optional[str] = None
     start_date: Optional[datetime] = None

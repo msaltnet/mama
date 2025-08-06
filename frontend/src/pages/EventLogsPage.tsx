@@ -29,10 +29,8 @@ import { DEBUG } from "../config";
 
 interface EventLog {
   id: number;
-  admin_id: number;
-  admin_username: string;
-  user_id: number | null;
-  user_user_id: string | null;
+  admin_id: string | null;
+  user_id: string | null;
   event_type: string;
   event_detail: string | null;
   result: string;
@@ -84,10 +82,8 @@ const generateDummyEventLogs = (count: number = 2000): EventLog[] => {
 
     dummyLogs.push({
       id: i + 1,
-      admin_id: Math.floor(Math.random() * 5) + 1,
-      admin_username: adminUsername,
-      user_id: userId ? Math.floor(Math.random() * 100) + 1 : null,
-      user_user_id: userId,
+      admin_id: adminUsername,
+      user_id: userId,
       event_type: eventType,
       event_detail: eventDetail,
       result: result,
@@ -168,7 +164,7 @@ const EventLogsPage: React.FC = () => {
   const [filters, setFilters] = useState({
     event_type: "",
     result: "",
-    admin_username: "",
+    admin_id: "",
     user_id: "",
     start_date: "",
     end_date: "",
@@ -186,8 +182,7 @@ const EventLogsPage: React.FC = () => {
         const params = new URLSearchParams();
         if (filters.event_type) params.append("event_type", filters.event_type);
         if (filters.result) params.append("result", filters.result);
-        if (filters.admin_username)
-          params.append("admin_username", filters.admin_username);
+        if (filters.admin_id) params.append("admin_id", filters.admin_id);
         if (filters.user_id) params.append("user_id", filters.user_id);
         if (filters.start_date) params.append("start_date", filters.start_date);
         if (filters.end_date) params.append("end_date", filters.end_date);
@@ -223,9 +218,9 @@ const EventLogsPage: React.FC = () => {
           (log) => log.result === filters.result,
         );
       }
-      if (filters.admin_username) {
+      if (filters.admin_id) {
         filteredLogs = filteredLogs.filter(
-          (log) => log.admin_username === filters.admin_username,
+          (log) => log.admin_id === filters.admin_id,
         );
       }
       if (filters.user_id) {
@@ -351,9 +346,9 @@ const EventLogsPage: React.FC = () => {
 
                 <TextField
                   label="Admin"
-                  value={filters.admin_username}
+                  value={filters.admin_id}
                   onChange={(e) =>
-                    handleFilterChange("admin_username", e.target.value)
+                    handleFilterChange("admin_id", e.target.value)
                   }
                   placeholder="Enter admin name"
                   sx={{ minWidth: 150 }}
@@ -480,13 +475,13 @@ const EventLogsPage: React.FC = () => {
                         })}
                       </TableCell>
                       <TableCell sx={{ width: "12%", minWidth: "100px" }}>
-                        {log.admin_username}
+                        {log.admin_id || "-"}
                       </TableCell>
                       <TableCell sx={{ width: "12%", minWidth: "100px" }}>
                         {getEventTypeLabel(log.event_type)}
                       </TableCell>
                       <TableCell sx={{ width: "12%", minWidth: "100px" }}>
-                        {log.user_user_id || "-"}
+                        {log.user_id || "-"}
                       </TableCell>
                       <TableCell sx={{ width: "8%", minWidth: "80px" }}>
                         {getResultChip(log.result)}

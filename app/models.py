@@ -40,7 +40,6 @@ class User(Base):
 
     allowed_models = relationship("AllowedModel", back_populates="user")
     allowed_services = relationship("AllowedService", back_populates="user")
-    event_logs = relationship("EventLog", back_populates="user")
 
 
 class AllowedModel(Base):
@@ -64,13 +63,10 @@ class AllowedService(Base):
 class EventLog(Base):
     __tablename__ = "event_logs"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    admin_id = Column(Integer, ForeignKey("admins.id"))  # 어떤 관리자가 이벤트를 발생시켰는지
+    user_id = Column(String(50))  # User의 user_id 문자열 저장
+    admin_id = Column(String(50))  # Admin의 username 문자열 저장
     event_type = Column(String(50), nullable=False)
     event_detail = Column(Text)
     result = Column(String(50))
     # pylint: disable=not-callable
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", back_populates="event_logs")
-    admin = relationship("Admin")

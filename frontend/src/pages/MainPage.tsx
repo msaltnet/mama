@@ -1036,6 +1036,8 @@ const MainPage: React.FC = () => {
           <DialogTitle sx={{ p: 2 }}>Create User</DialogTitle>
           <DialogContent sx={{ pt: 3, pb: 3 }}>
             <Stack spacing={3}>
+              <Divider sx={{ my: 1 }} />
+
               <TextField
                 label="User ID"
                 name="user_id"
