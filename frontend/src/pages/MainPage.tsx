@@ -564,7 +564,7 @@ const MainPage: React.FC = () => {
       }
 
       const updatedUser = await fetchJson<User>(
-        `/users/${editingUser.user_id}`,
+        `/user/${editingUser.user_id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

@@ -158,7 +158,7 @@ def log_event_sync(
     db = None
     try:
         db = SyncSessionLocal()  # 동기 세션 생성
-        
+
         # admin_id가 Admin 객체인 경우 ID를 추출
         # 비동기 세션에서 생성된 객체는 동기 세션에서 사용할 수 없으므로
         # 객체의 ID를 미리 추출하거나 None으로 처리
@@ -183,9 +183,6 @@ def log_event_sync(
     finally:
         if db:
             db.close()  # 세션 닫기
-
-
-
 
 
 @app.post("/login")
@@ -244,7 +241,7 @@ async def change_password(
     try:
         # admin_id를 미리 추출
         admin_id = current_admin.id
-        
+
         result = await db.execute(select(Admin).where(Admin.id == current_admin.id))
         admin = result.scalars().first()
         if not admin or not admin.verify_password(req.old_password):
@@ -294,7 +291,7 @@ async def create_admin(
     try:
         # admin_id를 미리 추출
         admin_id = current_admin.id
-        
+
         result = await db.execute(select(Admin).where(Admin.username == req.username))
         if result.scalars().first():
             background_tasks.add_task(
@@ -404,7 +401,7 @@ async def create_user(
     try:
         # admin_id를 미리 추출
         admin_id = current_admin.id
-        
+
         # 중복 검사
         user_ids = [user.user_id for user in req.users]
         existing_users = await db.execute(select(User).where(User.user_id.in_(user_ids)))
@@ -589,118 +586,6 @@ async def get_litellm_models(current_admin: Admin = Depends(get_current_admin)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/users/{user_id}", response_model=UserRead)
-async def update_user(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    user_id: str,
-    req: UserUpdateRequest,
-    current_admin: Admin = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """사용자 정보 수정"""
-    try:
-        # admin_id를 미리 추출
-        admin_id = current_admin.id
-        
-        # 사용자 존재 여부 확인
-        result = await db.execute(select(User).where(User.user_id == user_id))
-        user = result.scalar_one_or_none()
-
-        if not user:
-            background_tasks.add_task(
-                log_event_sync,
-                admin_id=admin_id,  # 미리 추출한 ID 사용
-                event_type="USER_UPDATE",
-                event_detail=f"Failed to update user - user not found: {user_id}",
-                result="FAILURE",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {user_id} not found",
-            )
-
-        # 사용자 정보 업데이트
-        if req.organization is not None:
-            user.organization = req.organization
-        if req.extra_info is not None:
-            user.extra_info = req.extra_info
-
-        # allowed_models 업데이트
-        if req.allowed_models is not None:
-            # 기존 allowed_models 삭제
-            await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
-
-            # 새로운 allowed_models 추가
-            for model_name in req.allowed_models:
-                allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
-                db.add(allowed_model)
-
-            # LiteLLM 키의 모델 권한 업데이트
-            try:
-                litellm_service = LiteLLMService()
-                await litellm_service.update_key_models(user.key_value, req.allowed_models)
-            except Exception as e:
-                # LiteLLM 데이터 업데이트 실패에 대한 DB 커밋 (예외 발생 시 무시)
-                print(
-                    f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
-                )
-
-        # updated_at 업데이트
-        user.updated_at = datetime.utcnow()
-
-        await db.commit()
-        await db.refresh(user)
-
-        # 데이터 allowed_models와 allowed_services를 조회합니다
-        models_result = await db.execute(
-            select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
-        )
-        allowed_models = [row[0] for row in models_result.fetchall()]
-
-        services_result = await db.execute(
-            select(AllowedService.service_name).where(AllowedService.user_id == user.id)
-        )
-        allowed_services = [row[0] for row in services_result.fetchall()]
-
-        # 성공 로그 기록 (백그라운드에서 처리)
-        background_tasks.add_task(
-            log_event_sync,
-            admin_id=admin_id,  # 미리 추출한 ID 사용
-            event_type="USER_UPDATE",
-            event_detail=f"User updated successfully: {user_id}",
-            user_id=user.id,
-            result="SUCCESS",
-        )
-
-        return {
-            "id": user.id,
-            "user_id": user.user_id,
-            "organization": user.organization,
-            "key_value": user.key_value,
-            "extra_info": user.extra_info,
-            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
-            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
-            "allowed_models": allowed_models,
-            "allowed_services": allowed_services,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        background_tasks.add_task(
-            log_event_sync,
-            admin_id=admin_id,  # 미리 추출한 ID 사용
-            event_type="USER_UPDATE",
-            event_detail=f"Unexpected error during user update: {str(e)}",
-            result="FAILURE",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update user: {str(e)}",
-        )
-
-
 @app.put("/users/batch", response_model=List[UserRead])
 async def batch_update_users(
     request: Request,
@@ -713,7 +598,7 @@ async def batch_update_users(
     try:
         # admin_id를 미리 추출
         admin_id = current_admin.id
-        
+
         if not req.user_ids:
             background_tasks.add_task(
                 log_event_sync,
@@ -839,6 +724,114 @@ async def batch_update_users(
         )
 
 
+@app.put("/user/{user_id}", response_model=UserRead)
+async def update_user(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user_id: str,
+    req: UserUpdateRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """사용자 정보 수정"""
+    try:
+        # admin_id를 미리 추출
+        admin_id = current_admin.id
+
+        # 사용자 존재 여부 확인
+        result = await db.execute(select(User).where(User.user_id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_id,  # 미리 추출한 ID 사용
+                event_type="USER_UPDATE",
+                event_detail=f"Failed to update user - user not found: {user_id}",
+                result="FAILURE",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found",
+            )
+
+        # 사용자 정보 업데이트
+        if req.organization is not None:
+            user.organization = req.organization
+        if req.extra_info is not None:
+            user.extra_info = req.extra_info
+
+        # allowed_models 업데이트
+        if req.allowed_models is not None:
+            # 기존 allowed_models 삭제
+            await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
+
+            # 새로운 allowed_models 추가
+            for model_name in req.allowed_models:
+                allowed_model = AllowedModel(user_id=user.id, model_name=model_name)
+                db.add(allowed_model)
+
+            # LiteLLM 키의 모델 권한 업데이트
+            try:
+                litellm_service = LiteLLMService()
+                await litellm_service.update_key_models(user.key_value, req.allowed_models)
+            except Exception as e:
+                # LiteLLM 데이터 업데이트 실패에 대한 DB 커밋 (예외 발생 시 무시)
+                print(
+                    f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
+                )
+
+        # updated_at 업데이트
+        user.updated_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(user)
+
+        # 데이터 allowed_models와 allowed_services를 조회합니다
+        models_result = await db.execute(
+            select(AllowedModel.model_name).where(AllowedModel.user_id == user.id)
+        )
+        allowed_models = [row[0] for row in models_result.fetchall()]
+
+        services_result = await db.execute(
+            select(AllowedService.service_name).where(AllowedService.user_id == user.id)
+        )
+        allowed_services = [row[0] for row in services_result.fetchall()]
+
+        # 성공 로그 기록 (백그라운드에서 처리)
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
+            event_type="USER_UPDATE",
+            event_detail=f"User updated successfully: {user_id}",
+            user_id=user.id,
+            result="SUCCESS",
+        )
+
+        return {
+            "id": user.id,
+            "user_id": user.user_id,
+            "organization": user.organization,
+            "key_value": user.key_value,
+            "extra_info": user.extra_info,
+            "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+            "allowed_models": allowed_models,
+            "allowed_services": allowed_services,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_id,  # 미리 추출한 ID 사용
+            event_type="USER_UPDATE",
+            event_detail=f"Unexpected error during user update: {str(e)}",
+            result="FAILURE",
+        )
+
+
 @app.delete("/users/batch")
 async def batch_delete_users(
     request: Request,
@@ -851,7 +844,7 @@ async def batch_delete_users(
     try:
         # admin_id를 미리 추출
         admin_id = current_admin.id
-        
+
         if not req.user_ids:
             background_tasks.add_task(
                 log_event_sync,
