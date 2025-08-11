@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Box, TextField, Button, Typography, Paper } from "@mui/material";
 import { fetchJson } from "../utils/api";
 
-const ChangePasswordPage: React.FC = () => {
-  const [oldPassword, setOldPassword] = useState("");
+const SetAdminPasswordPage: React.FC = () => {
+  const [username, setUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,19 +21,19 @@ const ChangePasswordPage: React.FC = () => {
     setPasswordMismatch("");
 
     try {
-      await fetchJson("/change-password", {
+      await fetchJson("/set-admin-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          old_password: oldPassword,
+          username: username,
           new_password: newPassword,
         }),
       });
 
-      alert("Password changed successfully.");
-      setOldPassword("");
+      alert("Admin password changed successfully.");
+      setUsername("");
       setNewPassword("");
       setConfirmPassword("");
       setError("");
@@ -70,16 +70,15 @@ const ChangePasswordPage: React.FC = () => {
   return (
     <Paper elevation={0} sx={{ p: 4, border: "none" }}>
       <Typography variant="h6" align="center" gutterBottom>
-        Change Password
+        Set Admin Password (Super Admin Only)
       </Typography>
       <Box component="form" onSubmit={handleSubmit}>
         <TextField
-          label="Current Password"
-          type="password"
+          label="Admin ID"
           fullWidth
           margin="normal"
-          value={oldPassword}
-          onChange={(e) => setOldPassword(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           required
         />
         <TextField
@@ -109,13 +108,10 @@ const ChangePasswordPage: React.FC = () => {
           fullWidth
           sx={{ mt: 2 }}
           disabled={
-            !oldPassword ||
-            !newPassword ||
-            !confirmPassword ||
-            !!passwordMismatch
+            !username || !newPassword || !confirmPassword || !!passwordMismatch
           }
         >
-          Change Password
+          Set Admin Password
         </Button>
         {error && (
           <Typography color="error" align="center" sx={{ mt: 2 }}>
@@ -127,4 +123,4 @@ const ChangePasswordPage: React.FC = () => {
   );
 };
 
-export default ChangePasswordPage;
+export default SetAdminPasswordPage;

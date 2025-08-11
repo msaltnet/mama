@@ -36,6 +36,7 @@ from .schemas import (
     KeyResponse,
     EventLogRead,
     EventLogFilter,
+    AdminPasswordSetRequest,
 )
 from .litellm_service import LiteLLMService
 
@@ -320,6 +321,58 @@ async def create_admin(
         raise
 
 
+@app.post("/set-admin-password")
+async def set_admin_password(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    req: AdminPasswordSetRequest,
+    current_admin: Admin = Depends(superuser_required),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # admin username을 미리 추출
+        admin_username = current_admin.username
+
+        # 대상 admin 계정이 존재하는지 확인
+        result = await db.execute(select(Admin).where(Admin.username == req.username))
+        target_admin = result.scalars().first()
+
+        if not target_admin:
+            background_tasks.add_task(
+                log_event_sync,
+                admin_id=admin_username,
+                event_type="Admin Password Set",
+                event_detail=f"Failed to set admin password - admin not found: {req.username}",
+                result="FAILURE",
+            )
+            raise HTTPException(status_code=404, detail="Admin account not found.")
+
+        # 패스워드 변경
+        target_admin.set_password(req.new_password)
+        await db.commit()
+
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_username,
+            event_type="Admin Password Set",
+            event_detail=f"Admin password set successfully: {req.username}",
+            result="SUCCESS",
+        )
+
+        return {"msg": f"관리자 계정({req.username})의 패스워드가 성공적으로 변경되었습니다."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=admin_username,
+            event_type="Admin Password Set",
+            event_detail=f"Unexpected error during admin password set: {str(e)}",
+            result="FAILURE",
+        )
+        raise
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_spa():
     """React SPA 서빙"""
@@ -530,7 +583,6 @@ async def create_user(
 
 
 def verify_server_api_key(x_api_key: str = Header(None)):
-    print(f"x_api_key: {x_api_key}")
     if x_api_key != SERVER_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 

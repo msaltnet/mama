@@ -2,10 +2,13 @@ import React, { useState } from "react";
 import { Tabs, Tab, Box, Paper } from "@mui/material";
 import ChangePasswordPage from "./ChangePasswordPage";
 import CreateAdminPage from "./CreateAdminPage";
+import SetAdminPasswordPage from "./SetAdminPasswordPage";
 
 const getTabList = (username: string | null) => [
   { label: "Change Password" },
-  ...(username === "mama" ? [{ label: "Create Admin Account" }] : []),
+  ...(username === "mama"
+    ? [{ label: "Create Admin Account" }, { label: "Set Admin Password" }]
+    : []),
 ];
 
 const AccountSettingsPage: React.FC = () => {
@@ -35,6 +38,7 @@ const AccountSettingsPage: React.FC = () => {
         <Box sx={{ mt: 3 }}>
           {tab === 0 && <ChangePasswordPage />}
           {tabList[1] && tab === 1 && <CreateAdminPage />}
+          {tabList[2] && tab === 2 && <SetAdminPasswordPage />}
         </Box>
       </Paper>
     </Box>
