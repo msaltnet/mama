@@ -5,10 +5,21 @@ import { fetchJson } from "../utils/api";
 const ChangePasswordPage: React.FC = () => {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [passwordMismatch, setPasswordMismatch] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if new password and confirm password match
+    if (newPassword !== confirmPassword) {
+      setPasswordMismatch("New password and confirm password do not match.");
+      return;
+    }
+
+    setPasswordMismatch("");
+
     try {
       await fetchJson("/change-password", {
         method: "POST",
@@ -24,6 +35,7 @@ const ChangePasswordPage: React.FC = () => {
       alert("Password changed successfully.");
       setOldPassword("");
       setNewPassword("");
+      setConfirmPassword("");
       setError("");
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -31,6 +43,25 @@ const ChangePasswordPage: React.FC = () => {
       } else {
         setError(String(err));
       }
+    }
+  };
+
+  // Clear mismatch message when password input changes
+  const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewPassword(e.target.value);
+    if (confirmPassword && e.target.value !== confirmPassword) {
+      setPasswordMismatch("New password and confirm password do not match.");
+    } else {
+      setPasswordMismatch("");
+    }
+  };
+
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setConfirmPassword(e.target.value);
+    if (newPassword && e.target.value !== newPassword) {
+      setPasswordMismatch("New password and confirm password do not match.");
+    } else {
+      setPasswordMismatch("");
     }
   };
 
@@ -47,6 +78,7 @@ const ChangePasswordPage: React.FC = () => {
           margin="normal"
           value={oldPassword}
           onChange={(e) => setOldPassword(e.target.value)}
+          required
         />
         <TextField
           label="New Password"
@@ -54,7 +86,19 @@ const ChangePasswordPage: React.FC = () => {
           fullWidth
           margin="normal"
           value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+          onChange={handleNewPasswordChange}
+          required
+        />
+        <TextField
+          label="Confirm New Password"
+          type="password"
+          fullWidth
+          margin="normal"
+          value={confirmPassword}
+          onChange={handleConfirmPasswordChange}
+          required
+          error={!!passwordMismatch}
+          helperText={passwordMismatch}
         />
         <Button
           type="submit"
@@ -62,6 +106,7 @@ const ChangePasswordPage: React.FC = () => {
           color="primary"
           fullWidth
           sx={{ mt: 2 }}
+          disabled={!oldPassword || !newPassword || !confirmPassword || !!passwordMismatch}
         >
           Change Password
         </Button>
