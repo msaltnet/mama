@@ -13,6 +13,11 @@ class AdminCreateRequest(BaseModel):
     password: str
 
 
+class AdminPasswordSetRequest(BaseModel):
+    username: str
+    new_password: str
+
+
 class UserRead(BaseModel):
     id: int
     user_id: str
