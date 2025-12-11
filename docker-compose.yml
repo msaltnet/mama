@@ -1,14 +1,13 @@
 services:
   db:
     image: postgres:15
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mama_db}
       POSTGRES_USER: ${POSTGRES_USER:-mama_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - mama_db_data:/var/lib/postgresql/data
 
   app:
     build:
@@ -16,6 +15,7 @@ services:
       dockerfile: Dockerfile
       args:
         ISSUE_REPORT_URL: ${ISSUE_REPORT_URL:-https://github.com/your-username/mama/issues}
+    restart: unless-stopped
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST:-db}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -36,23 +36,9 @@ services:
     depends_on:
       - db
     # If needed
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST:-db}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-mama_db}
-      POSTGRES_USER: ${POSTGRES_USER:-mama_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mama_password}
-    depends_on:
-      - db
-    command: alembic upgrade head
-    profiles: ["manual"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
-  postgres_data: 
+  mama_db_data:
+    external: true

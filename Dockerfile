@@ -39,8 +39,12 @@ COPY alembic.ini .
 # frontend 빌드 파일 복사
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
+# Copy entrypoint script
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 # Expose port
 EXPOSE 8000
 
-# Run the application directly
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use entrypoint script
+ENTRYPOINT ["./entrypoint.sh"]
