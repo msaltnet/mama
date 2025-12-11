@@ -23,12 +23,15 @@ import {
   TableSortLabel,
   InputAdornment,
   Checkbox,
+  Tooltip,
+  IconButton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
 import DeleteIcon from "@mui/icons-material/Delete";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { DEBUG } from "../config";
 import { fetchJson, deleteUsers } from "../utils/api";
 import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
@@ -419,7 +422,43 @@ const MainPage: React.FC = () => {
     const filtered = users.filter((user) => {
       if (!searchTerm.trim()) return true;
 
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = searchTerm.toLowerCase().trim();
+
+      // @ 구문 파싱
+      const userMatch = searchLower.match(/^@user:\s*(.+)$/);
+      const orgMatch = searchLower.match(/^@org:\s*(.+)$/);
+      const modelMatch = searchLower.match(/^@model:\s*(.+)$/);
+      const infoMatch = searchLower.match(/^@info:\s*(.+)$/);
+
+      // @user: 검색
+      if (userMatch) {
+        const keyword = userMatch[1];
+        const userId = user.user_id?.toLowerCase() || "";
+        return userId.includes(keyword);
+      }
+
+      // @org: 검색
+      if (orgMatch) {
+        const keyword = orgMatch[1];
+        const organization = user.organization?.toLowerCase() || "";
+        return organization.includes(keyword);
+      }
+
+      // @model: 검색
+      if (modelMatch) {
+        const keyword = modelMatch[1];
+        const models = user.allowed_models?.map(m => m.toLowerCase()).join(" ") || "";
+        return models.includes(keyword);
+      }
+
+      // @info: 검색
+      if (infoMatch) {
+        const keyword = infoMatch[1];
+        const extraInfo = user.extra_info?.toLowerCase() || "";
+        return extraInfo.includes(keyword);
+      }
+
+      // 일반 검색 (user_id, organization 포함)
       const userId = user.user_id?.toLowerCase() || "";
       const organization = user.organization?.toLowerCase() || "";
 
@@ -833,7 +872,7 @@ const MainPage: React.FC = () => {
         </Box>
 
         {/* 검색 필드 */}
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
           <TextField
             fullWidth
             variant="outlined"
@@ -847,8 +886,38 @@ const MainPage: React.FC = () => {
                 </InputAdornment>
               ),
             }}
-            sx={{ maxWidth: 400 }}
+            sx={{ maxWidth: 600 }}
           />
+          <Tooltip
+            title={
+              <Box sx={{ p: 1 }}>
+                <Typography variant="body2" gutterBottom>
+                  <strong>검색 방법:</strong>
+                </Typography>
+                <Typography variant="body2" component="div">
+                  • 일반 검색: 키워드 입력
+                </Typography>
+                <Typography variant="body2" component="div">
+                  • <strong>@user:</strong> 사용자 ID 검색
+                </Typography>
+                <Typography variant="body2" component="div">
+                  • <strong>@org:</strong> 조직명 검색
+                </Typography>
+                <Typography variant="body2" component="div">
+                  • <strong>@model:</strong> 모델명 검색
+                </Typography>
+                <Typography variant="body2" component="div">
+                  • <strong>@info:</strong> 추가 정보 검색
+                </Typography>
+              </Box>
+            }
+            arrow
+            placement="right"
+          >
+            <IconButton size="small" color="primary">
+              <HelpOutlineIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
