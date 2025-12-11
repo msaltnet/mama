@@ -6,9 +6,9 @@ from typing import List, Optional, Union
 import bcrypt
 import jwt
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, HTTPException, status, Body, Header, Request, BackgroundTasks
+from fastapi import Depends, FastAPI, HTTPException, status, Body, Header, Request, BackgroundTasks, Security
 from fastapi.responses import HTMLResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, select, delete
 from sqlalchemy.orm import Session, sessionmaker, selectinload
@@ -112,7 +112,8 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login", auto_error=False)
+api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
 
 async def get_current_admin(
@@ -135,6 +136,48 @@ async def get_current_admin(
     if admin is None:
         raise credentials_exception
     return admin
+
+
+async def get_current_admin_or_api_key(
+    token: Optional[str] = Security(oauth2_scheme),
+    x_api_key: Optional[str] = Security(api_key_header),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[Optional[Admin], Optional[str]]:
+    """
+    Get current admin from JWT token or verify x-api-key.
+    Returns (Admin object, None) for JWT auth or (None, 'SERVER_API') for API key auth.
+    """
+    # x-api-key가 제공된 경우
+    if x_api_key:
+        if x_api_key != SERVER_API_KEY:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+        return (None, "SERVER_API")
+
+    # JWT 토큰으로 인증
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    result = await db.execute(select(Admin).where(Admin.username == username))
+    admin = result.scalars().first()
+    if admin is None:
+        raise credentials_exception
+    return (admin, None)
 
 
 def superuser_required(current_admin: Admin = Depends(get_current_admin)):
@@ -404,7 +447,7 @@ async def db_health_check():
 @app.get("/users", response_model=List[UserRead])
 async def list_users(
     organization: Optional[str] = None,
-    current_admin: Admin = Depends(get_current_admin),
+    auth: tuple[Optional[Admin], Optional[str]] = Depends(get_current_admin_or_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(User).options(
@@ -432,17 +475,47 @@ async def list_users(
     return out
 
 
+@app.get("/user/{user_id}", response_model=UserRead)
+async def get_user(
+    user_id: str,
+    auth: tuple[Optional[Admin], Optional[str]] = Depends(get_current_admin_or_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    """특정 사용자 정보 조회"""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.allowed_models), selectinload(User.allowed_services))
+        .where(User.user_id == user_id)
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    return {
+        "id": user.id,
+        "user_id": user.user_id,
+        "organization": user.organization,
+        "key_value": user.key_value,
+        "extra_info": user.extra_info,
+        "created_at": user.created_at.isoformat() if user.created_at is not None else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at is not None else None,
+        "allowed_models": [m.model_name for m in user.allowed_models],
+        "allowed_services": [s.service_name for s in user.allowed_services],
+    }
+
+
 @app.post("/users", response_model=List[UserRead])
 async def create_user(
     request: Request,
     background_tasks: BackgroundTasks,
     req: UsersCreateListRequest,
-    current_admin: Admin = Depends(get_current_admin),
+    auth: tuple[Optional[Admin], Optional[str]] = Depends(get_current_admin_or_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     try:
         # admin username을 미리 추출
-        admin_username = current_admin.username
+        current_admin, api_identifier = auth
+        admin_username = api_identifier if api_identifier else current_admin.username
 
         # 중복 검사
         user_ids = [user.user_id for user in req.users]
@@ -581,36 +654,66 @@ async def create_user(
         raise
 
 
-def verify_server_api_key(x_api_key: str = Header(None)):
+def verify_server_api_key(x_api_key: str = Header(None)) -> str:
+    """Verify x-api-key header and return 'SERVER_API' identifier for logging"""
     if x_api_key != SERVER_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+    return "SERVER_API"
 
 
 @app.get("/key/{user_id}")
 async def get_user_key(
     user_id: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     x_api_key: str = Header(None),
 ):
-    verify_server_api_key(x_api_key)
+    api_identifier = verify_server_api_key(x_api_key)
     result = await db.execute(select(User).where(User.user_id == user_id))
     user = result.scalars().first()
     if not user:
+        background_tasks.add_task(
+            log_event_sync,
+            admin_id=api_identifier,
+            event_type="GET_USER_KEY",
+            event_detail=f"Failed to get user key - user not found: {user_id}",
+            user_id=user_id,
+            result="FAILURE",
+        )
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    background_tasks.add_task(
+        log_event_sync,
+        admin_id=api_identifier,
+        event_type="GET_USER_KEY",
+        event_detail=f"User key retrieved successfully: {user_id}",
+        user_id=user_id,
+        result="SUCCESS",
+    )
     return {"key": user.key_value}
 
 
 @app.post("/key/info", response_model=list[KeyResponse])
 async def get_keys(
+    background_tasks: BackgroundTasks,
     req: KeyRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     x_api_key: str = Header(None),
 ):
-    verify_server_api_key(x_api_key)
+    api_identifier = verify_server_api_key(x_api_key)
     stmt = select(User).where(User.user_id.in_(req.user_ids))
     result = await db.execute(stmt)
     users = result.scalars().all()
     out = [KeyResponse(user_id=u.user_id, user_key=u.key_value) for u in users]
+
+    background_tasks.add_task(
+        log_event_sync,
+        admin_id=api_identifier,
+        event_type="GET_KEYS_INFO",
+        event_detail=f"Keys info retrieved for {len(out)} users: {req.user_ids}",
+        user_id=req.user_ids[0] if req.user_ids else None,
+        result="SUCCESS",
+    )
     return out
 
 
@@ -633,13 +736,14 @@ async def batch_update_users(
     request: Request,
     background_tasks: BackgroundTasks,
     req: UsersBatchUpdateRequest,
-    current_admin: Admin = Depends(get_current_admin),
+    auth: tuple[Optional[Admin], Optional[str]] = Depends(get_current_admin_or_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     """복수 사용자 모델 권한 배치 수정"""
     try:
         # admin username을 미리 추출
-        admin_username = current_admin.username
+        current_admin, api_identifier = auth
+        admin_username = api_identifier if api_identifier else current_admin.username
 
         if not req.user_ids:
             background_tasks.add_task(
@@ -772,13 +876,14 @@ async def update_user(
     background_tasks: BackgroundTasks,
     user_id: str,
     req: UserUpdateRequest,
-    current_admin: Admin = Depends(get_current_admin),
+    auth: tuple[Optional[Admin], Optional[str]] = Depends(get_current_admin_or_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     """사용자 정보 수정"""
     try:
         # admin username을 미리 추출
-        admin_username = current_admin.username
+        current_admin, api_identifier = auth
+        admin_username = api_identifier if api_identifier else current_admin.username
 
         # 사용자 존재 여부 확인
         result = await db.execute(select(User).where(User.user_id == user_id))
