@@ -32,6 +32,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
 import DeleteIcon from "@mui/icons-material/Delete";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import IosShareIcon from "@mui/icons-material/IosShare";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { DEBUG } from "../config";
 import { fetchJson, deleteUsers } from "../utils/api";
 import { generateMockUsers, generateMockUsersFromIds } from "../utils/mockData";
@@ -108,6 +110,10 @@ const MainPage: React.FC = () => {
   // 삭제 다이얼로그 관련 상태
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Export 다이얼로그 관련 상태
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // 체크박스 선택 관련 상태
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -817,6 +823,30 @@ const MainPage: React.FC = () => {
     }
   };
 
+  // Export 다이얼로그 열기
+  const handleExportDialogOpen = () => {
+    setCopied(false);
+    setExportDialogOpen(true);
+  };
+
+  // Export 다이얼로그 닫기
+  const handleExportDialogClose = () => {
+    setExportDialogOpen(false);
+    setCopied(false);
+  };
+
+  // 클립보드에 복사
+  const handleCopyToClipboard = async () => {
+    const exportString = selectedUserIds.join(", ");
+    try {
+      await navigator.clipboard.writeText(exportString);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // 2초 후 복사 상태 초기화
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -849,6 +879,15 @@ const MainPage: React.FC = () => {
             sx={{ ml: 2 }}
           >
             Create User
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<IosShareIcon />}
+            onClick={handleExportDialogOpen}
+            disabled={selectedUserIds.length === 0}
+            sx={{ ml: 2 }}
+          >
+            Export ({selectedUserIds.length})
           </Button>
           <Button
             variant="outlined"
@@ -1717,6 +1756,47 @@ const MainPage: React.FC = () => {
               disabled={deleting}
             >
               {deleting ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Export 다이얼로그 */}
+        <Dialog
+          open={exportDialogOpen}
+          onClose={handleExportDialogClose}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Export User IDs</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              선택된 {selectedUserIds.length}개의 User ID:
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={6}
+              value={selectedUserIds.join(", ")}
+              InputProps={{
+                readOnly: true,
+              }}
+              sx={{
+                "& .MuiInputBase-input": {
+                  fontFamily: "monospace",
+                  fontSize: "0.9rem",
+                },
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleExportDialogClose}>닫기</Button>
+            <Button
+              onClick={handleCopyToClipboard}
+              variant="contained"
+              startIcon={<ContentCopyIcon />}
+              color={copied ? "success" : "primary"}
+            >
+              {copied ? "복사됨!" : "클립보드에 복사"}
             </Button>
           </DialogActions>
         </Dialog>
