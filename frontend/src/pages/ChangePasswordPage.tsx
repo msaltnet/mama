@@ -56,7 +56,9 @@ const ChangePasswordPage: React.FC = () => {
     }
   };
 
-  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleConfirmPasswordChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     setConfirmPassword(e.target.value);
     if (newPassword && e.target.value !== newPassword) {
       setPasswordMismatch("New password and confirm password do not match.");
@@ -106,7 +108,12 @@ const ChangePasswordPage: React.FC = () => {
           color="primary"
           fullWidth
           sx={{ mt: 2 }}
-          disabled={!oldPassword || !newPassword || !confirmPassword || !!passwordMismatch}
+          disabled={
+            !oldPassword ||
+            !newPassword ||
+            !confirmPassword ||
+            !!passwordMismatch
+          }
         >
           Change Password
         </Button>

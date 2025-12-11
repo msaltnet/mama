@@ -6,7 +6,9 @@ import SetAdminPasswordPage from "./SetAdminPasswordPage";
 
 const getTabList = (username: string | null) => [
   { label: "Change Password" },
-  ...(username === "mama" ? [{ label: "Create Admin Account" }, { label: "Set Admin Password" }] : []),
+  ...(username === "mama"
+    ? [{ label: "Create Admin Account" }, { label: "Set Admin Password" }]
+    : []),
 ];
 
 const AccountSettingsPage: React.FC = () => {

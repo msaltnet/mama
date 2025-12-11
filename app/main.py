@@ -336,12 +336,11 @@ async def set_admin_password(
         # 대상 admin 계정이 존재하는지 확인
         result = await db.execute(select(Admin).where(Admin.username == req.username))
         target_admin = result.scalars().first()
-        
         if not target_admin:
             background_tasks.add_task(
                 log_event_sync,
                 admin_id=admin_username,
-                event_type="ADMIN_PASSWORD_SET",
+                event_type="Admin Password Set",
                 event_detail=f"Failed to set admin password - admin not found: {req.username}",
                 result="FAILURE",
             )
@@ -354,7 +353,7 @@ async def set_admin_password(
         background_tasks.add_task(
             log_event_sync,
             admin_id=admin_username,
-            event_type="ADMIN_PASSWORD_SET",
+            event_type="Admin Password Set",
             event_detail=f"Admin password set successfully: {req.username}",
             result="SUCCESS",
         )
@@ -366,7 +365,7 @@ async def set_admin_password(
         background_tasks.add_task(
             log_event_sync,
             admin_id=admin_username,
-            event_type="ADMIN_PASSWORD_SET",
+            event_type="Admin Password Set",
             event_detail=f"Unexpected error during admin password set: {str(e)}",
             result="FAILURE",
         )
