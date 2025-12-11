@@ -190,7 +190,3 @@ docker build -f frontend/Dockerfile -t mama-frontend ./frontend
 - `JWT_SECRET_KEY`: 강력한 랜덤 문자열
 - `SERVER_API_KEY`: 외부 시스템 인증용 API Key
 - `POSTGRES_PASSWORD`: 강력한 데이터베이스 비밀번호
-
-## TODO
-- user list 로딩할 때, 로딩 아이콘을 화면에 띄워줘.
-- 

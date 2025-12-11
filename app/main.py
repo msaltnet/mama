@@ -783,8 +783,8 @@ async def batch_update_users(
         litellm_service = LiteLLMService()
 
         for user in users:
-            # allowed_models 업데이트
-            if req.allowed_models is not None:
+            # allowed_models 업데이트 (빈 배열이 아닌 경우에만)
+            if req.allowed_models is not None and len(req.allowed_models) > 0:
                 # 기존 allowed_models 삭제
                 await db.execute(delete(AllowedModel).where(AllowedModel.user_id == user.id))
 
@@ -801,6 +801,14 @@ async def batch_update_users(
                     print(
                         f"Warning: Failed to update LiteLLM key models for user {user.user_id}: {str(e)}"
                     )
+
+            # organization 업데이트
+            if req.organization is not None:
+                user.organization = req.organization
+
+            # extra_info 업데이트
+            if req.extra_info is not None:
+                user.extra_info = req.extra_info
 
             # updated_at 업데이트
             user.updated_at = datetime.utcnow()

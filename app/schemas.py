@@ -57,6 +57,8 @@ class UsersCreateListRequest(BaseModel):
 class UsersBatchUpdateRequest(BaseModel):
     user_ids: list[str]
     allowed_models: list[str] = []
+    organization: Optional[str] = None
+    extra_info: Optional[str] = None
 
 
 class UsersDeleteRequest(BaseModel):

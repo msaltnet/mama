@@ -98,6 +98,8 @@ const MainPage: React.FC = () => {
   const [batchEditSelectedModels, setBatchEditSelectedModels] = useState<
     string[]
   >([]);
+  const [batchEditOrganization, setBatchEditOrganization] = useState("");
+  const [batchEditExtraInfo, setBatchEditExtraInfo] = useState("");
   const [batchUpdating, setBatchUpdating] = useState(false);
 
   // 삭제 다이얼로그 관련 상태
@@ -624,6 +626,8 @@ const MainPage: React.FC = () => {
     setBatchEditDialogOpen(false);
     setBatchEditSelectedUsers([]);
     setBatchEditSelectedModels([]);
+    setBatchEditOrganization("");
+    setBatchEditExtraInfo("");
     setSelectedUserIds([]); // 선택된 사용자들도 초기화
   };
 
@@ -658,9 +662,15 @@ const MainPage: React.FC = () => {
 
   // 일괄 수정 사용자 정보 업데이트
   const handleBatchUpdateUsers = async () => {
+    if (batchEditSelectedUsers.length === 0) {
+      return;
+    }
+
+    // 적어도 하나의 필드가 변경되어야 함
     if (
-      batchEditSelectedUsers.length === 0 ||
-      batchEditSelectedModels.length === 0
+      batchEditSelectedModels.length === 0 &&
+      !batchEditOrganization &&
+      !batchEditExtraInfo
     ) {
       return;
     }
@@ -679,15 +689,20 @@ const MainPage: React.FC = () => {
             ) {
               return {
                 ...user,
-                allowed_models: batchEditSelectedModels,
+                ...(batchEditSelectedModels.length > 0 && {
+                  allowed_models: batchEditSelectedModels,
+                }),
+                ...(batchEditOrganization && {
+                  organization: batchEditOrganization,
+                }),
+                ...(batchEditExtraInfo && { extra_info: batchEditExtraInfo }),
                 updated_at: new Date().toISOString(),
               };
             }
             return user;
           }),
         );
-        setBatchEditDialogOpen(false);
-        setSelectedUserIds([]); // 선택된 사용자들 초기화
+        handleBatchEditDialogClose();
         return;
       }
 
@@ -696,7 +711,12 @@ const MainPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_ids: batchEditSelectedUsers.map((user) => user.user_id),
-          allowed_models: batchEditSelectedModels,
+          allowed_models:
+            batchEditSelectedModels.length > 0
+              ? batchEditSelectedModels
+              : undefined,
+          organization: batchEditOrganization || undefined,
+          extra_info: batchEditExtraInfo || undefined,
         }),
       });
 
@@ -708,8 +728,7 @@ const MainPage: React.FC = () => {
           return updatedUser || user;
         }),
       );
-      setBatchEditDialogOpen(false);
-      setSelectedUserIds([]); // 선택된 사용자들 초기화
+      handleBatchEditDialogClose();
     } catch (err: unknown) {
       console.error("Batch update failed:", err);
     } finally {
@@ -1421,17 +1440,43 @@ const MainPage: React.FC = () => {
                 </Box>
               </Box>
               <Divider />
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ fontStyle: "italic" }}
-              >
-                Note: This will replace the existing model information for all
-                selected users.
-              </Typography>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Organization
+                </Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Enter organization (optional)"
+                  value={batchEditOrganization}
+                  onChange={(e) => setBatchEditOrganization(e.target.value)}
+                  helperText="Leave empty to keep existing values"
+                />
+              </Box>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Extra Info
+                </Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Enter extra info (optional)"
+                  value={batchEditExtraInfo}
+                  onChange={(e) => setBatchEditExtraInfo(e.target.value)}
+                  helperText="Leave empty to keep existing values"
+                />
+              </Box>
               <Divider sx={{ my: 1 }} />
               <Typography variant="h6" gutterBottom>
                 Available Models
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontStyle: "italic", mb: 2 }}
+              >
+                Note: This will replace the existing model information for all
+                selected users.
               </Typography>
               {loadingModels ? (
                 <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
@@ -1546,7 +1591,9 @@ const MainPage: React.FC = () => {
               disabled={
                 batchUpdating ||
                 batchEditSelectedUsers.length === 0 ||
-                batchEditSelectedModels.length === 0
+                (batchEditSelectedModels.length === 0 &&
+                  !batchEditOrganization &&
+                  !batchEditExtraInfo)
               }
             >
               {batchUpdating ? "Updating..." : "Update Selected Users"}
